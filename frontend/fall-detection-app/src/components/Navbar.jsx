@@ -1,11 +1,19 @@
 import React from 'react';
 import { Bell, User, LogOut } from 'lucide-react';
+import caireLogo from '../assets/caire.png';
 
 function Navbar() {
   return (
     <nav style={styles.navbar}>
       <div style={styles.left}>
-        <h1 style={styles.title}>Fall Detection System</h1>
+        {/* Logo and Title */}
+        <img 
+          src={caireLogo} 
+          alt="CAIRE Logo" 
+          style={styles.logo}
+        />
+        <h1 style={styles.title}>CAIRE</h1>
+        <span style={styles.subtitle}>Fall Detection System</span>
       </div>
 
       <div style={styles.right}>
@@ -50,12 +58,26 @@ const styles = {
   left: {
     display: 'flex',
     alignItems: 'center',
+    gap: '12px',
+  },
+  logo: {
+    height: '40px',
+    width: '40px',
+    objectFit: 'contain',
   },
   title: {
     margin: 0,
-    fontSize: '20px',
-    fontWeight: '600',
+    fontSize: '24px',
+    fontWeight: '700',
     color: '#2c3e50',
+  },
+  subtitle: {
+    fontSize: '14px',
+    color: '#7f8c8d',
+    fontWeight: '400',
+    marginLeft: '8px',
+    paddingLeft: '12px',
+    borderLeft: '2px solid #e0e0e0',
   },
   right: {
     display: 'flex',

@@ -9,7 +9,7 @@ import uuid
 from datetime import datetime
 import os
 from live_detection import LiveDetector
-from database import save_detection, get_all_detections, get_detection_stats, delete_all_detections
+from database import save_detection, get_all_detections, get_detection_stats, delete_all_detections, create_user, verify_user, get_all_users, delete_user
 
 # Initialize FastAPI app
 app = FastAPI(title="Fall Detection API", version="1.0")
@@ -54,7 +54,10 @@ def read_root():
             "stream_url": "/live/stream-url",
             "logs_list": "/logs/list",
             "logs_stats": "/logs/stats",
-            "logs_delete_all": "/logs/delete-all"
+            "logs_delete_all": "/logs/delete-all",
+            "auth_login": "/auth/login",
+            "auth_register": "/auth/register",
+            "auth_users": "/auth/users"
         }
     }
 
@@ -317,6 +320,58 @@ def delete_all():
     return {
         "success": True,
         "message": "All detections deleted from database"
+    }
+
+# ==================== AUTHENTICATION ENDPOINTS ====================
+
+@app.post("/auth/login")
+def login(username: str, password: str):
+    """Login endpoint - verify credentials"""
+    user = verify_user(username, password)
+    
+    if user:
+        return {
+            "success": True,
+            "user": {
+                "id": user['id'],
+                "username": user['username'],
+                "role": user['role']
+            },
+            "message": "Login successful"
+        }
+    else:
+        raise HTTPException(status_code=401, detail="Invalid username or password")
+
+@app.post("/auth/register")
+def register(username: str, password: str, role: str = "user"):
+    """Register new user endpoint"""
+    # Check if username already exists
+    user_id = create_user(username, password, role)
+    if user_id:
+        return {
+            "success": True,
+            "message": f"User '{username}' created successfully",
+            "user_id": user_id
+        }
+    else:
+        raise HTTPException(status_code=400, detail="Username already exists")
+
+@app.get("/auth/users")
+def list_users():
+    """Get all users (admin only in production)"""
+    users = get_all_users()
+    return {
+        "users": users,
+        "count": len(users)
+    }
+
+@app.delete("/auth/users/{user_id}")
+def remove_user(user_id: int):
+    """Delete a user (admin only in production)"""
+    delete_user(user_id)
+    return {
+        "success": True,
+        "message": f"User {user_id} deleted"
     }
 
 # Run with: uvicorn app:app --reload --host 0.0.0.0 --port 8000

@@ -1,7 +1,7 @@
-import logo from '/logo.png';
 import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { LayoutDashboard, Video, BarChart3, FileText, Settings, Radio } from 'lucide-react';
+import caireLogo from '../assets/caire.png';
 
 function Sidebar() {
   const menuItems = [
@@ -17,8 +17,12 @@ function Sidebar() {
     <div style={styles.sidebar}>
       {/* Logo */}
       <div style={styles.logo}>
-        <div style={styles.logoIcon}>🎥</div>
-        <h2 style={styles.logoText}>FallDetect</h2>
+        <img 
+          src={caireLogo} 
+          alt="CAIRE Logo" 
+          style={styles.logoIcon}
+        />
+        <h2 style={styles.logoText}>CAIRE</h2>
       </div>
 
       {/* Menu Items */}
@@ -29,7 +33,7 @@ function Sidebar() {
             to={item.path}
             style={({ isActive }) => ({
               ...styles.menuItem,
-              ...(isActive ? styles.menuItemActive : {})
+              ...(isActive ? styles.menuItemActive : styles.menuItemInactive)
             })}
           >
             <item.icon size={20} />
@@ -40,7 +44,8 @@ function Sidebar() {
 
       {/* Footer */}
       <div style={styles.footer}>
-        <p style={styles.footerText}>v1.0.0</p>
+        <p style={styles.footerText}>CAIRE v1.0.0</p>
+        <p style={styles.footerSubtext}>Fall Detection System</p>
       </div>
     </div>
   );
@@ -62,13 +67,16 @@ const styles = {
     borderBottom: '1px solid rgba(255,255,255,0.1)',
   },
   logoIcon: {
-    fontSize: '28px',
+    height: '48px',        
+    width: '48px',        
+    objectFit: 'contain',
   },
   logoText: {
     color: '#ffffff',
     margin: 0,
-    fontSize: '20px',
-    fontWeight: '600',
+    fontSize: '28px',     
+    fontWeight: '700',
+    letterSpacing: '0.5px',
   },
   nav: {
     flex: 1,
@@ -89,6 +97,9 @@ const styles = {
     color: '#3498db',
     borderLeftColor: '#3498db',
   },
+  menuItemInactive: {
+    borderLeftColor: 'transparent',
+  },
   menuLabel: {
     fontSize: '15px',
     fontWeight: '500',
@@ -98,8 +109,15 @@ const styles = {
     borderTop: '1px solid rgba(255,255,255,0.1)',
   },
   footerText: {
+    color: '#ffffff',
+    fontSize: '13px',
+    margin: '0 0 4px 0',
+    textAlign: 'center',
+    fontWeight: '600',
+  },
+  footerSubtext: {
     color: '#7f8c8d',
-    fontSize: '12px',
+    fontSize: '11px',
     margin: 0,
     textAlign: 'center',
   },
