@@ -71,7 +71,7 @@ function LiveDetection() {
   return (
     <div style={styles.container}>
       <div style={styles.header}>
-        <h1 style={styles.title}>🔴 Live Fall Detection</h1>
+        <h1 style={styles.title}>Live Fall Detection</h1>
         <p style={styles.subtitle}>Real-time monitoring with Tapo C210</p>
       </div>
 
@@ -128,7 +128,7 @@ function LiveDetection() {
         ) : (
           <div style={styles.placeholder}>
             <p style={styles.placeholderText}>
-              {isRunning ? '⏳ Loading video feed...' : '📹 Click Start to begin monitoring'}
+              {isRunning ? 'Loading video feed...' : 'Click Start to begin monitoring'}
             </p>
           </div>
         )}

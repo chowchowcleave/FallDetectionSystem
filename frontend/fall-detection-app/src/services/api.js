@@ -37,4 +37,12 @@ export const api = {
     const response = await axios.get(`${API_BASE_URL}/live/stream-url`);
     return response.data;
   },
+
+  // Authentication
+  login: async (username, password) => {
+    const response = await axios.post(`${API_BASE_URL}/auth/login`, null, {
+      params: { username, password }
+    });
+    return response.data;
+  },
 };

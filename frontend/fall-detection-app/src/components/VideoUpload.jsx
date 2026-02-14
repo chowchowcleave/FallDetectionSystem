@@ -21,7 +21,7 @@ function VideoUpload() {
   return (
     <div style={styles.container}>
       <div style={styles.header}>
-        <h1 style={styles.title}>🎥 Fall Detection System</h1>
+        <h1 style={styles.title}>Fall Detection Model Tester</h1>
         <p style={styles.subtitle}>Upload a video to detect falls</p>
       </div>
 

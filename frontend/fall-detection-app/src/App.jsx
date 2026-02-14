@@ -4,13 +4,20 @@ import Layout from './components/Layout';
 import Dashboard from './components/Dashboard';
 import VideoUpload from './components/VideoUpload';
 import LiveDetection from './components/LiveDetection';
+import Login from './pages/Login';
 
 function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<Layout />}>
-          <Route index element={<Navigate to="/dashboard" replace />} />
+        {/* Redirect root to login */}
+        <Route path="/" element={<Navigate to="/login" replace />} />
+        
+        {/* Login Route - No Layout */}
+        <Route path="/login" element={<Login />} />
+        
+        {/* Protected Routes - With Layout */}
+        <Route element={<Layout />}>
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="detection" element={<VideoUpload />} />
           <Route path="live" element={<LiveDetection />} />
