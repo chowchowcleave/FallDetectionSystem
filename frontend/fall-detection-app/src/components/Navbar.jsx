@@ -1,0 +1,138 @@
+import React from 'react';
+import { Bell, User, LogOut } from 'lucide-react';
+
+function Navbar() {
+  return (
+    <nav style={styles.navbar}>
+      <div style={styles.left}>
+        <h1 style={styles.title}>Fall Detection System</h1>
+      </div>
+
+      <div style={styles.right}>
+        {/* Notifications */}
+        <button style={styles.iconButton}>
+          <Bell size={20} />
+          <span style={styles.badge}>3</span>
+        </button>
+
+        {/* User Menu */}
+        <div style={styles.userSection}>
+          <div style={styles.avatar}>
+            <User size={18} />
+          </div>
+          <div style={styles.userInfo}>
+            <p style={styles.userName}>Admin User</p>
+            <p style={styles.userRole}>Administrator</p>
+          </div>
+        </div>
+
+        {/* Logout */}
+        <button style={styles.logoutButton}>
+          <LogOut size={18} />
+          <span>Logout</span>
+        </button>
+      </div>
+    </nav>
+  );
+}
+
+const styles = {
+  navbar: {
+    height: '70px',
+    backgroundColor: '#ffffff',
+    borderBottom: '1px solid #e0e0e0',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: '0 30px',
+    boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
+  },
+  left: {
+    display: 'flex',
+    alignItems: 'center',
+  },
+  title: {
+    margin: 0,
+    fontSize: '20px',
+    fontWeight: '600',
+    color: '#2c3e50',
+  },
+  right: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '20px',
+  },
+  iconButton: {
+    position: 'relative',
+    background: 'none',
+    border: 'none',
+    cursor: 'pointer',
+    padding: '8px',
+    borderRadius: '8px',
+    color: '#7f8c8d',
+    transition: 'all 0.3s',
+  },
+  badge: {
+    position: 'absolute',
+    top: '4px',
+    right: '4px',
+    backgroundColor: '#e74c3c',
+    color: '#ffffff',
+    fontSize: '10px',
+    fontWeight: 'bold',
+    padding: '2px 5px',
+    borderRadius: '10px',
+    minWidth: '16px',
+    textAlign: 'center',
+  },
+  userSection: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '12px',
+    padding: '8px 12px',
+    borderRadius: '8px',
+    cursor: 'pointer',
+    transition: 'all 0.3s',
+  },
+  avatar: {
+    width: '38px',
+    height: '38px',
+    borderRadius: '50%',
+    backgroundColor: '#3498db',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    color: '#ffffff',
+  },
+  userInfo: {
+    display: 'flex',
+    flexDirection: 'column',
+  },
+  userName: {
+    margin: 0,
+    fontSize: '14px',
+    fontWeight: '600',
+    color: '#2c3e50',
+  },
+  userRole: {
+    margin: 0,
+    fontSize: '12px',
+    color: '#7f8c8d',
+  },
+  logoutButton: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    padding: '8px 16px',
+    backgroundColor: 'transparent',
+    border: '1px solid #e74c3c',
+    borderRadius: '8px',
+    color: '#e74c3c',
+    cursor: 'pointer',
+    fontSize: '14px',
+    fontWeight: '500',
+    transition: 'all 0.3s',
+  },
+};
+
+export default Navbar;

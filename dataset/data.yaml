@@ -1,0 +1,13 @@
+train: ../train/images
+val: ../valid/images
+test: ../test/images
+
+nc: 1
+names: ['Fall-Detected']
+
+roboflow:
+  workspace: capstone-vug1d
+  project: fall-detection-ca3o8-9xqt5
+  version: 1
+  license: CC BY 4.0
+  url: https://universe.roboflow.com/capstone-vug1d/fall-detection-ca3o8-9xqt5/dataset/1
