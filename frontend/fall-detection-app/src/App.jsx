@@ -6,6 +6,7 @@ import VideoUpload from './components/VideoUpload';
 import LiveDetection from './components/LiveDetection';
 import Login from './pages/Login';
 import Settings from './pages/Settings';
+import AnimatedLayout from './components/AnimatedLayout';  // ADD THISimport Login from './pages/Login';
 
 function App() {
   return (
@@ -17,8 +18,8 @@ function App() {
         {/* Login Route - No Layout */}
         <Route path="/login" element={<Login />} />
         
-        {/* Protected Routes - With Layout */}
-        <Route element={<Layout />}>
+        {/* Protected Routes - With Animated Layout */}
+        <Route element={<AnimatedLayout />}>
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="detection" element={<VideoUpload />} />
           <Route path="live" element={<LiveDetection />} />

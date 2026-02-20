@@ -9,7 +9,7 @@ import uuid
 from datetime import datetime
 import os
 from live_detection import LiveDetector
-from database import save_detection, get_all_detections, get_detection_stats, delete_all_detections, create_user, verify_user, get_all_users, delete_user, get_all_settings, get_settings_by_category, update_setting
+from database import save_detection, get_all_detections, get_detection_stats, delete_all_detections, create_user, verify_user, get_all_users, delete_user, get_all_settings, get_settings_by_category, update_setting, change_password
 
 # Initialize FastAPI app
 app = FastAPI(title="Fall Detection API", version="1.0")
@@ -394,6 +394,17 @@ def remove_user(user_id: int):
         "success": True,
         "message": f"User {user_id} deleted"
     }
+
+@app.post("/auth/change-password")
+def change_user_password(username: str, current_password: str, new_password: str):
+    """Change user password"""
+    if change_password(username, current_password, new_password):
+        return {
+            "success": True,
+            "message": "Password changed successfully"
+        }
+    else:
+        raise HTTPException(status_code=401, detail="Current password is incorrect")
 
 # ==================== SETTINGS ENDPOINTS ====================
 

@@ -45,4 +45,16 @@ export const api = {
     });
     return response.data;
   },
+
+  // Change Password
+  changePassword: async (username, currentPassword, newPassword) => {
+    const response = await axios.post(`${API_BASE_URL}/auth/change-password`, null, {
+      params: { 
+        username, 
+        current_password: currentPassword,
+        new_password: newPassword
+      }
+    });
+    return response.data;
+  },
 };

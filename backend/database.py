@@ -242,6 +242,39 @@ def delete_user(user_id):
     conn.commit()
     conn.close()
 
+def change_password(username, current_password, new_password):
+    """Change user password after verifying current password"""
+    # Hash the current password to verify
+    current_hash = hashlib.sha256(current_password.encode()).hexdigest()
+    new_hash = hashlib.sha256(new_password.encode()).hexdigest()
+    
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    
+    # Verify current password
+    cursor.execute('''
+        SELECT id FROM users
+        WHERE username = ? AND password_hash = ?
+    ''', (username, current_hash))
+    
+    user = cursor.fetchone()
+    
+    if not user:
+        conn.close()
+        return False  # Current password is incorrect
+    
+    # Update to new password
+    cursor.execute('''
+        UPDATE users
+        SET password_hash = ?
+        WHERE username = ?
+    ''', (new_hash, username))
+    
+    conn.commit()
+    conn.close()
+    
+    return True  # Password changed successfully
+
 # ==================== SETTINGS FUNCTIONS ====================
 
 def init_settings_table():

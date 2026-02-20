@@ -1,20 +1,27 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bell, User, LogOut, AlertCircle } from 'lucide-react';
+import { Bell, User, LogOut, AlertCircle, Settings, Key, ChevronDown } from 'lucide-react';
 import caireLogo from '../assets/caire.png';
+import { api } from '../services/api';
 
 function Navbar() {
   const navigate = useNavigate();
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [showUserDropdown, setShowUserDropdown] = useState(false);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+  const [passwordSuccess, setPasswordSuccess] = useState('');
 
   const handleLogoutClick = () => {
     setShowLogoutModal(true);
+    setShowUserDropdown(false);
   };
 
   const handleConfirmLogout = () => {
-    // Clear user data from localStorage
     localStorage.removeItem('user');
-    // Redirect to login
     navigate('/login');
   };
 
@@ -22,6 +29,49 @@ function Navbar() {
     setShowLogoutModal(false);
   };
 
+const handleChangePassword = async () => {
+    setPasswordError('');
+    setPasswordSuccess('');
+
+    // Validation
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      setPasswordError('All fields are required');
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setPasswordError('New passwords do not match');
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      setPasswordError('Password must be at least 6 characters');
+      return;
+    }
+
+    try {
+      // Call API to change password
+      const response = await api.changePassword(user.username, currentPassword, newPassword);
+      
+      if (response.success) {
+        setPasswordSuccess('Password changed successfully!');
+        setTimeout(() => {
+          setShowPasswordModal(false);
+          setCurrentPassword('');
+          setNewPassword('');
+          setConfirmPassword('');
+          setPasswordSuccess('');
+        }, 2000);
+      }
+    } catch (error) {
+      if (error.response?.status === 401) {
+        setPasswordError('Current password is incorrect');
+      } else {
+        setPasswordError('Failed to change password. Please try again.');
+      }
+    }
+  };
+  
   // Get user info from localStorage
   const user = JSON.parse(localStorage.getItem('user') || '{}');
 
@@ -29,7 +79,6 @@ function Navbar() {
     <>
       <nav style={styles.navbar}>
         <div style={styles.left}>
-          {/* Logo and Title */}
           <img 
             src={caireLogo} 
             alt="CAIRE Logo" 
@@ -46,22 +95,76 @@ function Navbar() {
             <span style={styles.badge}>3</span>
           </button>
 
-          {/* User Menu */}
-          <div style={styles.userSection}>
-            <div style={styles.avatar}>
-              <User size={18} />
+          {/* User Menu with Dropdown */}
+          <div style={styles.userMenuContainer}>
+            <div 
+              style={styles.userSection}
+              onClick={() => setShowUserDropdown(!showUserDropdown)}
+            >
+              <div style={styles.avatar}>
+                <User size={18} />
+              </div>
+              <div style={styles.userInfo}>
+                <p style={styles.userName}>{user.username || 'Admin User'}</p>
+                <p style={styles.userRole}>{user.role === 'admin' ? 'Administrator' : 'User'}</p>
+              </div>
+              <ChevronDown 
+                size={18} 
+                style={{
+                  ...styles.chevron,
+                  transform: showUserDropdown ? 'rotate(180deg)' : 'rotate(0deg)',
+                }} 
+              />
             </div>
-            <div style={styles.userInfo}>
-              <p style={styles.userName}>{user.username || 'Admin User'}</p>
-              <p style={styles.userRole}>{user.role === 'admin' ? 'Administrator' : 'User'}</p>
-            </div>
-          </div>
 
-          {/* Logout */}
-          <button style={styles.logoutButton} onClick={handleLogoutClick}>
-            <LogOut size={18} />
-            <span>Logout</span>
-          </button>
+            {/* Dropdown Menu */}
+            {showUserDropdown && (
+              <div style={styles.dropdown}>
+                <button 
+                  style={styles.dropdownItem}
+                  onClick={() => {
+                    setShowUserDropdown(false);
+                    // TODO: Navigate to profile page
+                  }}
+                >
+                  <User size={16} />
+                  <span>My Profile</span>
+                </button>
+                
+                <button 
+                  style={styles.dropdownItem}
+                  onClick={() => {
+                    setShowUserDropdown(false);
+                    setShowPasswordModal(true);
+                  }}
+                >
+                  <Key size={16} />
+                  <span>Change Password</span>
+                </button>
+                
+                <button 
+                  style={styles.dropdownItem}
+                  onClick={() => {
+                    setShowUserDropdown(false);
+                    navigate('/settings');
+                  }}
+                >
+                  <Settings size={16} />
+                  <span>Settings</span>
+                </button>
+                
+                <div style={styles.dropdownDivider}></div>
+                
+                <button 
+                  style={{...styles.dropdownItem, ...styles.dropdownItemDanger}}
+                  onClick={handleLogoutClick}
+                >
+                  <LogOut size={16} />
+                  <span>Logout</span>
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </nav>
 
@@ -86,6 +189,90 @@ function Navbar() {
           </div>
         </div>
       )}
+
+      {/* Change Password Modal */}
+      {showPasswordModal && (
+        <div style={styles.modalOverlay} onClick={() => setShowPasswordModal(false)}>
+          <div style={styles.passwordModal} onClick={(e) => e.stopPropagation()}>
+            <div style={styles.passwordHeader}>
+              <Key size={32} color="#3498db" />
+              <h2 style={styles.modalTitle}>Change Password</h2>
+            </div>
+
+            {passwordError && (
+              <div style={styles.errorMessage}>
+                <AlertCircle size={16} />
+                <span>{passwordError}</span>
+              </div>
+            )}
+
+            {passwordSuccess && (
+              <div style={styles.successMessage}>
+                <span>✓ {passwordSuccess}</span>
+              </div>
+            )}
+
+            <div style={styles.passwordForm}>
+              <div style={styles.formGroup}>
+                <label style={styles.label}>Current Password</label>
+                <input
+                  type="password"
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  placeholder="Enter current password"
+                  style={styles.input}
+                />
+              </div>
+
+              <div style={styles.formGroup}>
+                <label style={styles.label}>New Password</label>
+                <input
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="Enter new password"
+                  style={styles.input}
+                />
+              </div>
+
+              <div style={styles.formGroup}>
+                <label style={styles.label}>Confirm New Password</label>
+                <input
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="Confirm new password"
+                  style={styles.input}
+                />
+              </div>
+            </div>
+
+            <div style={styles.modalButtons}>
+              <button 
+                style={styles.cancelButton} 
+                onClick={() => {
+                  setShowPasswordModal(false);
+                  setPasswordError('');
+                  setPasswordSuccess('');
+                }}
+              >
+                Cancel
+              </button>
+              <button style={styles.confirmButton} onClick={handleChangePassword}>
+                Change Password
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Click outside to close dropdown */}
+      {showUserDropdown && (
+        <div 
+          style={styles.dropdownBackdrop}
+          onClick={() => setShowUserDropdown(false)}
+        />
+      )}
     </>
   );
 }
@@ -100,6 +287,8 @@ const styles = {
     justifyContent: 'space-between',
     padding: '0 30px',
     boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
+    position: 'relative',
+    zIndex: 100,
   },
   left: {
     display: 'flex',
@@ -153,6 +342,9 @@ const styles = {
     minWidth: '16px',
     textAlign: 'center',
   },
+  userMenuContainer: {
+    position: 'relative',
+  },
   userSection: {
     display: 'flex',
     alignItems: 'center',
@@ -187,19 +379,55 @@ const styles = {
     fontSize: '12px',
     color: '#7f8c8d',
   },
-  logoutButton: {
+  chevron: {
+    color: '#7f8c8d',
+    transition: 'transform 0.3s',
+  },
+  
+  // Dropdown Menu
+  dropdown: {
+    position: 'absolute',
+    top: '100%',
+    right: 0,
+    marginTop: '8px',
+    backgroundColor: '#ffffff',
+    borderRadius: '10px',
+    boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
+    minWidth: '220px',
+    padding: '8px',
+    zIndex: 1000,
+  },
+  dropdownItem: {
     display: 'flex',
     alignItems: 'center',
-    gap: '8px',
-    padding: '8px 16px',
+    gap: '12px',
+    width: '100%',
+    padding: '12px 16px',
+    border: 'none',
     backgroundColor: 'transparent',
-    border: '1px solid #e74c3c',
-    borderRadius: '8px',
-    color: '#e74c3c',
-    cursor: 'pointer',
+    color: '#2c3e50',
     fontSize: '14px',
     fontWeight: '500',
-    transition: 'all 0.3s',
+    cursor: 'pointer',
+    borderRadius: '6px',
+    transition: 'all 0.2s',
+    textAlign: 'left',
+  },
+  dropdownItemDanger: {
+    color: '#e74c3c',
+  },
+  dropdownDivider: {
+    height: '1px',
+    backgroundColor: '#e0e0e0',
+    margin: '8px 0',
+  },
+  dropdownBackdrop: {
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 99,
   },
   
   // Modal Styles
@@ -267,6 +495,66 @@ const styles = {
     fontWeight: '600',
     cursor: 'pointer',
     transition: 'all 0.3s',
+  },
+  
+  // Password Modal
+  passwordModal: {
+    backgroundColor: '#ffffff',
+    borderRadius: '16px',
+    padding: '30px',
+    width: '90%',
+    maxWidth: '450px',
+    boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+  },
+  passwordHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '15px',
+    marginBottom: '25px',
+  },
+  passwordForm: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '20px',
+    marginBottom: '25px',
+  },
+  formGroup: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '8px',
+  },
+  label: {
+    fontSize: '14px',
+    fontWeight: '600',
+    color: '#2c3e50',
+    textAlign: 'left',
+  },
+  input: {
+    padding: '12px 16px',
+    fontSize: '15px',
+    border: '2px solid #e0e0e0',
+    borderRadius: '8px',
+    outline: 'none',
+    transition: 'border-color 0.3s',
+  },
+  errorMessage: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '10px',
+    backgroundColor: '#fee',
+    color: '#c33',
+    padding: '12px 16px',
+    borderRadius: '8px',
+    fontSize: '14px',
+    marginBottom: '20px',
+  },
+  successMessage: {
+    backgroundColor: '#d4edda',
+    color: '#155724',
+    padding: '12px 16px',
+    borderRadius: '8px',
+    fontSize: '14px',
+    marginBottom: '20px',
   },
 };
 

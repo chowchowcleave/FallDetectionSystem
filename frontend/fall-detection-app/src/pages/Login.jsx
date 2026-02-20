@@ -17,7 +17,7 @@ function Login() {
     setIsVisible(true);
   }, []);
 
-  const handleSubmit = async (e) => {
+ const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     setLoading(true);
@@ -28,13 +28,18 @@ function Login() {
       if (response.success) {
         // Store user info
         localStorage.setItem('user', JSON.stringify(response.user));
-        // Redirect to dashboard
-        navigate('/dashboard');
+        
+        // Start fade out animation
+        setIsVisible(false);
+        
+        // Wait for fade animation to complete, then navigate
+        setTimeout(() => {
+          navigate('/dashboard');
+        }, 500); // 500ms matches the transition time
       }
     } catch (err) {
       setError('Invalid username or password');
-    } finally {
-      setLoading(false);
+      setLoading(false); // Re-enable button on error
     }
   };
 
