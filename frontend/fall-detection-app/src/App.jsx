@@ -5,6 +5,7 @@ import Dashboard from './components/Dashboard';
 import VideoUpload from './components/VideoUpload';
 import LiveDetection from './components/LiveDetection';
 import Login from './pages/Login';
+import Settings from './pages/Settings';
 
 function App() {
   return (
@@ -23,7 +24,7 @@ function App() {
           <Route path="live" element={<LiveDetection />} />
           <Route path="analytics" element={<ComingSoon page="Analytics" />} />
           <Route path="logs" element={<ComingSoon page="Logs" />} />
-          <Route path="settings" element={<ComingSoon page="Settings" />} />
+          <Route path="settings" element={<Settings />} />
         </Route>
       </Routes>
     </BrowserRouter>

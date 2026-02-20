@@ -3,6 +3,7 @@ import numpy as np
 from ultralytics import YOLO
 import base64
 import time
+from datetime import datetime, timedelta
 
 class LiveDetector:
     def __init__(self, model_path, rtsp_url):
@@ -11,6 +12,7 @@ class LiveDetector:
         self.rtsp_url = rtsp_url
         self.cap = None
         self.is_running = False
+        self.last_detection_time = None  # Track last detection for cooldown
         
     def connect_camera(self):
         """Connect to the RTSP camera"""
@@ -22,6 +24,17 @@ class LiveDetector:
         else:
             print("❌ Failed to connect to camera")
             return False
+    
+    def is_cooldown_active(self):
+        """Check if cooldown period is still active"""
+        if self.last_detection_time is None:
+            return False
+        
+        from database import get_setting
+        cooldown_seconds = int(get_setting('cooldown_seconds', '30'))
+        
+        time_since_last = (datetime.now() - self.last_detection_time).total_seconds()
+        return time_since_last < cooldown_seconds
     
     def detect_frame(self):
         """Read a frame, run detection, return annotated frame + results"""
@@ -35,11 +48,17 @@ class LiveDetector:
         # HIGH QUALITY: Larger resolution for better clarity
         frame_resized = cv2.resize(frame, (640, 360))
         
-        # Run YOLO detection
-        results = self.model(frame_resized, conf=0.5, verbose=False)
+        # Get confidence from settings
+        from database import get_setting
+        confidence = float(get_setting('confidence_threshold', '0.75'))
+        
+        # Run YOLO detection with confidence from settings
+        results = self.model(frame_resized, conf=confidence, verbose=False)
         
         # Get detections
         detections = []
+        fall_detected_this_frame = False
+        
         for r in results:
             for box in r.boxes:
                 x1, y1, x2, y2 = box.xyxy[0].tolist()
@@ -53,19 +72,35 @@ class LiveDetector:
                     'class': class_name
                 })
                 
+                # Check if it's a fall
+                if 'fall' in class_name.lower():
+                    fall_detected_this_frame = True
+                
                 # Draw bounding box
-                color = (0, 0, 255) if class_name == 'fall' else (0, 255, 0)
+                color = (0, 0, 255) if 'fall' in class_name.lower() else (0, 255, 0)
                 cv2.rectangle(frame_resized, 
                             (int(x1), int(y1)), 
                             (int(x2), int(y2)), 
                             color, 2)
                 
                 # Add label
-                label = f"{class_name} {conf:.2f}"
+                label = "Fall Detected" if 'fall' in class_name.lower() else class_name
                 cv2.putText(frame_resized, label, 
                           (int(x1), int(y1) - 8),
                           cv2.FONT_HERSHEY_SIMPLEX, 
                           0.5, color, 2)
+        
+        # Update cooldown timer if fall was detected
+        if fall_detected_this_frame:
+            if not self.is_cooldown_active():
+                # Cooldown expired, this is a new detection
+                self.last_detection_time = datetime.now()
+                print(f"⏱️ New fall detected! Cooldown timer started.")
+            else:
+                # Still in cooldown, skip
+                cooldown_seconds = int(get_setting('cooldown_seconds', '30'))
+                time_remaining = cooldown_seconds - (datetime.now() - self.last_detection_time).total_seconds()
+                print(f"⏸️ Cooldown active: {time_remaining:.0f}s remaining")
         
         # HIGH QUALITY: 75% JPEG quality
         encode_param = [cv2.IMWRITE_JPEG_QUALITY, 75]

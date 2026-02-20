@@ -242,7 +242,158 @@ def delete_user(user_id):
     conn.commit()
     conn.close()
 
+# ==================== SETTINGS FUNCTIONS ====================
+
+def init_settings_table():
+    """Create settings table if it doesn't exist"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS settings (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            setting_key TEXT UNIQUE NOT NULL,
+            setting_value TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        )
+    ''')
+    
+    conn.commit()
+    conn.close()
+    print(f"✅ Settings table initialized")
+
+def create_default_settings():
+    """Create default settings if none exist"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    
+    # Check if settings exist
+    cursor.execute('SELECT COUNT(*) FROM settings')
+    count = cursor.fetchone()[0]
+    
+    if count == 0:
+        now = datetime.now().isoformat()
+        
+        # Default settings
+        default_settings = [
+            # Camera Settings
+            ('camera_url', 'rtsp://chamsroom:admin123@192.168.101.13:554/stream1'),
+            ('camera_username', 'chamsroom'),
+            ('camera_password', 'admin123'),
+            ('camera_location', 'Main Camera'),
+            
+            # Detection Settings
+            ('confidence_threshold', '0.75'),
+            ('cooldown_seconds', '30'),
+            ('enable_fall_detection', 'true'),
+            ('enable_fighting_detection', 'false'),
+            
+            # Alert Settings
+            ('alert_email_enabled', 'false'),
+            ('alert_email_address', 'admin@example.com'),
+            ('alert_sms_enabled', 'false'),
+            ('alert_phone_number', ''),
+            ('alert_sound_enabled', 'true'),
+            
+            # System Information
+            ('organization_name', 'CAIRE Healthcare'),
+            ('contact_person', 'Administrator'),
+            ('emergency_contact', '+63-XXX-XXX-XXXX'),
+            ('system_location', 'Main Building'),
+        ]
+        
+        for key, value in default_settings:
+            cursor.execute('''
+                INSERT INTO settings (setting_key, setting_value, updated_at)
+                VALUES (?, ?, ?)
+            ''', (key, value, now))
+        
+        conn.commit()
+        print(f"✅ Default settings created")
+    
+    conn.close()
+
+def get_setting(key, default=None):
+    """Get a single setting value"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    
+    cursor.execute('SELECT setting_value FROM settings WHERE setting_key = ?', (key,))
+    result = cursor.fetchone()
+    
+    conn.close()
+    
+    if result:
+        return result[0]
+    return default
+
+def update_setting(key, value):
+    """Update a setting value"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    
+    cursor.execute('''
+        UPDATE settings 
+        SET setting_value = ?, updated_at = ?
+        WHERE setting_key = ?
+    ''', (value, datetime.now().isoformat(), key))
+    
+    conn.commit()
+    rows_affected = cursor.rowcount
+    conn.close()
+    
+    return rows_affected > 0
+
+def get_all_settings():
+    """Get all settings as a dictionary"""
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    
+    cursor.execute('SELECT setting_key, setting_value FROM settings')
+    rows = cursor.fetchall()
+    
+    conn.close()
+    
+    # Convert to dictionary
+    settings = {row['setting_key']: row['setting_value'] for row in rows}
+    return settings
+
+def get_settings_by_category():
+    """Get all settings organized by category"""
+    all_settings = get_all_settings()
+    
+    return {
+        'camera': {
+            'url': all_settings.get('camera_url', ''),
+            'username': all_settings.get('camera_username', ''),
+            'password': all_settings.get('camera_password', ''),
+            'location': all_settings.get('camera_location', ''),
+        },
+        'detection': {
+            'confidence_threshold': float(all_settings.get('confidence_threshold', 0.75)),
+            'cooldown_seconds': int(all_settings.get('cooldown_seconds', 30)),
+            'enable_fall_detection': all_settings.get('enable_fall_detection', 'true') == 'true',
+            'enable_fighting_detection': all_settings.get('enable_fighting_detection', 'false') == 'true',
+        },
+        'alerts': {
+            'email_enabled': all_settings.get('alert_email_enabled', 'false') == 'true',
+            'email_address': all_settings.get('alert_email_address', ''),
+            'sms_enabled': all_settings.get('alert_sms_enabled', 'false') == 'true',
+            'phone_number': all_settings.get('alert_phone_number', ''),
+            'sound_enabled': all_settings.get('alert_sound_enabled', 'true') == 'true',
+        },
+        'system': {
+            'organization_name': all_settings.get('organization_name', ''),
+            'contact_person': all_settings.get('contact_person', ''),
+            'emergency_contact': all_settings.get('emergency_contact', ''),
+            'system_location': all_settings.get('system_location', ''),
+        }
+    }
+
 # Initialize database when module is imported
 init_database()
 init_users_table()
 create_default_admin()
+init_settings_table()
+create_default_settings()

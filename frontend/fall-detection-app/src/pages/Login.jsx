@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Lock, User, AlertCircle } from 'lucide-react';
 import caireLogo from '../assets/caire.png';
@@ -9,7 +9,13 @@ function Login() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [isVisible, setIsVisible] = useState(false);
   const navigate = useNavigate();
+
+  // Trigger animations on mount
+  useEffect(() => {
+    setIsVisible(true);
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -35,21 +41,48 @@ function Login() {
   return (
     <div style={styles.container}>
       {/* Left Side - Branding */}
-      <div style={styles.leftSide}>
+      <div style={{
+        ...styles.leftSide,
+        opacity: isVisible ? 1 : 0,
+        transform: isVisible ? 'translateX(0)' : 'translateX(-50px)',
+        transition: 'all 0.8s ease-out',
+      }}>
         <div style={styles.brandingContent}>
-          <img src={caireLogo} alt="CAIRE Logo" style={styles.logo} />
+          <img 
+            src={caireLogo} 
+            alt="CAIRE Logo" 
+            style={{
+              ...styles.logo,
+              animation: 'pulse 2s ease-in-out infinite',
+            }} 
+          />
           <h1 style={styles.brandTitle}>CAIRE</h1>
           <p style={styles.brandSubtitle}>Fall Detection System</p>
           <div style={styles.features}>
-            <div style={styles.feature}>
+            <div style={{
+              ...styles.feature,
+              opacity: isVisible ? 1 : 0,
+              transform: isVisible ? 'translateX(0)' : 'translateX(-30px)',
+              transition: 'all 0.6s ease-out 0.3s',
+            }}>
               <div style={styles.featureIcon}>✓</div>
               <span>Real-time monitoring</span>
             </div>
-            <div style={styles.feature}>
+            <div style={{
+              ...styles.feature,
+              opacity: isVisible ? 1 : 0,
+              transform: isVisible ? 'translateX(0)' : 'translateX(-30px)',
+              transition: 'all 0.6s ease-out 0.5s',
+            }}>
               <div style={styles.featureIcon}>✓</div>
               <span>AI-powered detection</span>
             </div>
-            <div style={styles.feature}>
+            <div style={{
+              ...styles.feature,
+              opacity: isVisible ? 1 : 0,
+              transform: isVisible ? 'translateX(0)' : 'translateX(-30px)',
+              transition: 'all 0.6s ease-out 0.7s',
+            }}>
               <div style={styles.featureIcon}>✓</div>
               <span>Instant alerts</span>
             </div>
@@ -59,7 +92,12 @@ function Login() {
 
       {/* Right Side - Login Form */}
       <div style={styles.rightSide}>
-        <div style={styles.formContainer}>
+        <div style={{
+          ...styles.formContainer,
+          opacity: isVisible ? 1 : 0,
+          transform: isVisible ? 'translateY(0)' : 'translateY(30px)',
+          transition: 'all 0.8s ease-out 0.3s',
+        }}>
           <div style={styles.formHeader}>
             <h2 style={styles.formTitle}>Welcome Back</h2>
             <p style={styles.formSubtitle}>Please login to continue</p>
@@ -86,6 +124,8 @@ function Login() {
                   placeholder="Enter your username"
                   style={styles.input}
                   required
+                  onFocus={(e) => e.target.style.borderColor = '#667eea'}
+                  onBlur={(e) => e.target.style.borderColor = '#e0e0e0'}
                 />
               </div>
             </div>
@@ -102,6 +142,8 @@ function Login() {
                   placeholder="Enter your password"
                   style={styles.input}
                   required
+                  onFocus={(e) => e.target.style.borderColor = '#667eea'}
+                  onBlur={(e) => e.target.style.borderColor = '#e0e0e0'}
                 />
               </div>
             </div>
@@ -114,12 +156,28 @@ function Login() {
                 ...(loading ? styles.loginButtonDisabled : {})
               }}
               disabled={loading}
+              onMouseEnter={(e) => !loading && (e.target.style.transform = 'translateY(-2px)')}
+              onMouseLeave={(e) => e.target.style.transform = 'translateY(0)'}
             >
               {loading ? 'Logging in...' : 'Login'}
             </button>
           </form>
         </div>
       </div>
+
+      {/* Inject keyframes for animations */}
+      <style>{`
+        @keyframes pulse {
+          0%, 100% {
+            transform: scale(1);
+            filter: drop-shadow(0 4px 6px rgba(0,0,0,0.1));
+          }
+          50% {
+            transform: scale(1.05);
+            filter: drop-shadow(0 8px 12px rgba(0,0,0,0.15));
+          }
+        }
+      `}</style>
     </div>
   );
 }
@@ -131,7 +189,7 @@ const styles = {
     width: '100%',
   },
   
-  // Left Side - Branding
+  // Left Side - Branding (PURPLE GRADIENT BACK!)
   leftSide: {
     flex: 1,
     background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
@@ -151,13 +209,13 @@ const styles = {
     width: '120px',
     height: '120px',
     marginBottom: '20px',
-    filter: 'drop-shadow(0 4px 6px rgba(0,0,0,0.1))',
   },
   brandTitle: {
     fontSize: '56px',
     fontWeight: '700',
     margin: '0 0 10px 0',
     letterSpacing: '2px',
+    textShadow: '0 2px 10px rgba(0,0,0,0.2)',
   },
   brandSubtitle: {
     fontSize: '20px',
@@ -188,6 +246,7 @@ const styles = {
     justifyContent: 'center',
     fontSize: '16px',
     fontWeight: 'bold',
+    backdropFilter: 'blur(10px)',
   },
   
   // Right Side - Form
@@ -279,6 +338,7 @@ const styles = {
     cursor: 'pointer',
     transition: 'all 0.3s',
     marginTop: '10px',
+    boxShadow: '0 4px 15px rgba(102, 126, 234, 0.3)',
   },
   loginButtonDisabled: {
     opacity: 0.6,

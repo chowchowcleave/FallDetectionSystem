@@ -9,7 +9,7 @@ import uuid
 from datetime import datetime
 import os
 from live_detection import LiveDetector
-from database import save_detection, get_all_detections, get_detection_stats, delete_all_detections, create_user, verify_user, get_all_users, delete_user
+from database import save_detection, get_all_detections, get_detection_stats, delete_all_detections, create_user, verify_user, get_all_users, delete_user, get_all_settings, get_settings_by_category, update_setting
 
 # Initialize FastAPI app
 app = FastAPI(title="Fall Detection API", version="1.0")
@@ -35,7 +35,16 @@ UPLOAD_DIR.mkdir(exist_ok=True)
 OUTPUT_DIR.mkdir(exist_ok=True)
 
 # Live detection setup
-RTSP_URL = "rtsp://chamsroom:admin123@192.168.101.13:554/stream1"
+from database import get_setting
+
+def get_camera_url():
+    """Get camera URL from settings"""
+    return get_setting('camera_url', 'rtsp://chamsroom:admin123@192.168.101.13:554/stream1')
+
+def get_confidence():
+    """Get confidence threshold from settings"""
+    return float(get_setting('confidence_threshold', '0.75'))
+
 live_detector = None
 
 # Root endpoint
@@ -57,7 +66,9 @@ def read_root():
             "logs_delete_all": "/logs/delete-all",
             "auth_login": "/auth/login",
             "auth_register": "/auth/register",
-            "auth_users": "/auth/users"
+            "auth_users": "/auth/users",
+            "settings": "/settings",
+            "settings_update": "/settings/update"
         }
     }
 
@@ -103,9 +114,10 @@ async def detect_video(file: UploadFile = File(...)):
         print(f"📥 Processing: {input_filename}")
         
         # Run detection
+        confidence = get_confidence()
         results = model(
             source=str(input_path),
-            conf=0.5,  # Confidence threshold
+            conf=confidence,  # Confidence threshold from settings
             save=True,
             project=str(OUTPUT_DIR),
             name=file_id,
@@ -207,7 +219,9 @@ def start_live_detection():
     if live_detector and live_detector.is_running:
         return {"status": "already_running"}
     
-    live_detector = LiveDetector(MODEL_PATH, RTSP_URL)
+    # Get camera URL from settings
+    camera_url = get_camera_url()
+    live_detector = LiveDetector(MODEL_PATH, camera_url)
     
     if live_detector.connect_camera():
         return {
@@ -245,20 +259,26 @@ def get_live_frame():
     if frame_b64 is None:
         raise HTTPException(status_code=500, detail="Failed to read frame")
     
-    # 🆕 AUTO-SAVE FALLS TO DATABASE FROM LIVE DETECTION!
+    # 🆕 AUTO-SAVE FALLS TO DATABASE WITH COOLDOWN!
     print(f"🔍 DEBUG: Got {len(detections)} detections")
+    
+    # Check if cooldown allows saving
+    should_save = not live_detector.is_cooldown_active()
+    
     for detection in detections:
         print(f"🔍 DEBUG: Detection class = '{detection['class']}'")
-        # FIXED: Check if 'fall' is in the class name (case-insensitive)
         if 'fall' in detection['class'].lower():
-            print(f"🔍 DEBUG: Saving fall with confidence {detection['confidence']}")
-            save_detection(
-                detection_type='fall',
-                confidence=detection['confidence'],
-                camera_source='live',
-                notes=f"Bounding box: {detection['bbox']}"
-            )
-            print(f"💾 Fall saved to database! Confidence: {detection['confidence']:.2f}")
+            if should_save:
+                print(f"🔍 DEBUG: Saving fall with confidence {detection['confidence']}")
+                save_detection(
+                    detection_type='fall',
+                    confidence=detection['confidence'],
+                    camera_source='live',
+                    notes=f"Bounding box: {detection['bbox']}"
+                )
+                print(f"💾 Fall saved to database! Confidence: {detection['confidence']:.2f}")
+            else:
+                print(f"⏸️ Cooldown active - skipping database save")
         else:
             print(f"🔍 DEBUG: Skipping '{detection['class']}' - not a fall")
     
@@ -271,8 +291,9 @@ def get_live_frame():
 @app.get("/live/stream-url")
 def get_stream_url():
     """Get RTSP stream URL for direct video playback"""
+    camera_url = get_camera_url()
     return {
-        "rtsp_url": RTSP_URL,
+        "rtsp_url": camera_url,
         "status": "success"
     }
 
@@ -373,6 +394,64 @@ def remove_user(user_id: int):
         "success": True,
         "message": f"User {user_id} deleted"
     }
+
+# ==================== SETTINGS ENDPOINTS ====================
+
+@app.get("/settings")
+def get_settings():
+    """Get all settings organized by category"""
+    settings = get_settings_by_category()
+    return {
+        "success": True,
+        "settings": settings
+    }
+
+@app.get("/settings/raw")
+def get_raw_settings():
+    """Get all settings as flat key-value pairs"""
+    settings = get_all_settings()
+    return {
+        "success": True,
+        "settings": settings
+    }
+
+@app.post("/settings/update")
+def update_settings(settings: dict):
+    """Update multiple settings at once"""
+    try:
+        updated_count = 0
+        
+        for key, value in settings.items():
+            # Convert boolean to string for storage
+            if isinstance(value, bool):
+                value = 'true' if value else 'false'
+            # Convert numbers to string for storage
+            elif isinstance(value, (int, float)):
+                value = str(value)
+            
+            if update_setting(key, value):
+                updated_count += 1
+        
+        return {
+            "success": True,
+            "message": f"Updated {updated_count} settings",
+            "updated_count": updated_count
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to update settings: {str(e)}")
+
+@app.post("/settings/{key}")
+def update_single_setting(key: str, value: str):
+    """Update a single setting"""
+    if update_setting(key, value):
+        return {
+            "success": True,
+            "message": f"Setting '{key}' updated",
+            "key": key,
+            "value": value
+        }
+    else:
+        raise HTTPException(status_code=404, detail=f"Setting '{key}' not found")
 
 # Run with: uvicorn app:app --reload --host 0.0.0.0 --port 8000
 if __name__ == "__main__":
