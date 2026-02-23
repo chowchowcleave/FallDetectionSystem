@@ -3,7 +3,8 @@ import numpy as np
 from ultralytics import YOLO
 import base64
 import time
-from datetime import datetime, timedelta
+from datetime import datetime
+from pathlib import Path
 
 class LiveDetector:
     def __init__(self, model_path, rtsp_url):
@@ -12,17 +13,21 @@ class LiveDetector:
         self.rtsp_url = rtsp_url
         self.cap = None
         self.is_running = False
-        self.last_detection_time = None  # Track last detection for cooldown
+        self.last_detection_time = None
+        
+        # Create images directory
+        self.images_dir = Path(__file__).parent / "images"
+        self.images_dir.mkdir(exist_ok=True)
         
     def connect_camera(self):
         """Connect to the RTSP camera"""
         self.cap = cv2.VideoCapture(self.rtsp_url)
         if self.cap.isOpened():
             self.is_running = True
-            print("✅ Camera connected!")
+            print("Camera connected!")
             return True
         else:
-            print("❌ Failed to connect to camera")
+            print("Failed to connect to camera")
             return False
     
     def is_cooldown_active(self):
@@ -36,14 +41,25 @@ class LiveDetector:
         time_since_last = (datetime.now() - self.last_detection_time).total_seconds()
         return time_since_last < cooldown_seconds
     
+    def save_detection_image(self, frame):
+        """Save detection frame as image and return filename"""
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"fall_{timestamp}.jpg"
+        filepath = self.images_dir / filename
+        
+        # Save high quality image
+        cv2.imwrite(str(filepath), frame, [cv2.IMWRITE_JPEG_QUALITY, 90])
+        
+        return filename
+    
     def detect_frame(self):
         """Read a frame, run detection, return annotated frame + results"""
         if not self.cap or not self.cap.isOpened():
-            return None, None
+            return None, None, None
         
         ret, frame = self.cap.read()
         if not ret:
-            return None, None
+            return None, None, None
         
         # HIGH QUALITY: Larger resolution for better clarity
         frame_resized = cv2.resize(frame, (640, 360))
@@ -58,6 +74,7 @@ class LiveDetector:
         # Get detections
         detections = []
         fall_detected_this_frame = False
+        saved_image_filename = None
         
         for r in results:
             for box in r.boxes:
@@ -90,50 +107,29 @@ class LiveDetector:
                           cv2.FONT_HERSHEY_SIMPLEX, 
                           0.5, color, 2)
         
-        # Update cooldown timer if fall was detected
+        # Update cooldown timer and save image if fall was detected
         if fall_detected_this_frame:
             if not self.is_cooldown_active():
-                # Cooldown expired, this is a new detection
+                # Cooldown expired, this is a new detection - SAVE IMAGE
                 self.last_detection_time = datetime.now()
-                print(f"⏱️ New fall detected! Cooldown timer started.")
+                saved_image_filename = self.save_detection_image(frame_resized)
+                print(f"New fall detected! Image saved: {saved_image_filename}")
             else:
                 # Still in cooldown, skip
                 cooldown_seconds = int(get_setting('cooldown_seconds', '30'))
                 time_remaining = cooldown_seconds - (datetime.now() - self.last_detection_time).total_seconds()
-                print(f"⏸️ Cooldown active: {time_remaining:.0f}s remaining")
+                print(f"Cooldown active: {time_remaining:.0f}s remaining")
         
         # HIGH QUALITY: 75% JPEG quality
         encode_param = [cv2.IMWRITE_JPEG_QUALITY, 75]
         _, buffer = cv2.imencode('.jpg', frame_resized, encode_param)
         frame_base64 = base64.b64encode(buffer).decode('utf-8')
         
-        return frame_base64, detections
+        return frame_base64, detections, saved_image_filename
     
     def stop(self):
         """Stop the camera stream"""
         self.is_running = False
         if self.cap:
             self.cap.release()
-            print("📷 Camera released")
-
-# Test the detector
-if __name__ == "__main__":
-    MODEL_PATH = r"C:\Users\user\Desktop\FallDetection\models\best.pt"
-    RTSP_URL = "rtsp://chamsroom:admin123@192.168.101.13:554/stream1"
-    
-    detector = LiveDetector(MODEL_PATH, RTSP_URL)
-    
-    if detector.connect_camera():
-        print("Testing detection for 10 seconds...")
-        start_time = time.time()
-        
-        while time.time() - start_time < 10:
-            frame_b64, detections = detector.detect_frame()
-            if detections:
-                print(f"🔍 Detected: {len(detections)} objects")
-                for det in detections:
-                    print(f"  - {det['class']}: {det['confidence']:.2f}")
-            time.sleep(0.1)
-        
-        detector.stop()
-        print("✅ Test complete!")
+            print("Camera released")

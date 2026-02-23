@@ -8,6 +8,7 @@ import shutil
 import uuid
 from datetime import datetime
 import os
+
 from live_detection import LiveDetector
 from database import save_detection, get_all_detections, get_detection_stats, delete_all_detections, create_user, verify_user, get_all_users, delete_user, get_all_settings, get_settings_by_category, update_setting, change_password
 
@@ -254,40 +255,32 @@ def get_live_frame():
     if not live_detector or not live_detector.is_running:
         raise HTTPException(status_code=400, detail="Live detection not running")
     
-    frame_b64, detections = live_detector.detect_frame()
+    frame_b64, detections, saved_image = live_detector.detect_frame()
     
     if frame_b64 is None:
         raise HTTPException(status_code=500, detail="Failed to read frame")
     
-    # 🆕 AUTO-SAVE FALLS TO DATABASE WITH COOLDOWN!
-    print(f"🔍 DEBUG: Got {len(detections)} detections")
-    
-    # Check if cooldown allows saving
-    should_save = not live_detector.is_cooldown_active()
-    
-    for detection in detections:
-        print(f"🔍 DEBUG: Detection class = '{detection['class']}'")
-        if 'fall' in detection['class'].lower():
-            if should_save:
-                print(f"🔍 DEBUG: Saving fall with confidence {detection['confidence']}")
+    # Only save to database if an image was captured (cooldown logic is in live_detection.py)
+    if saved_image:
+        for detection in detections:
+            if 'fall' in detection['class'].lower():
+                print(f"Saving fall with image: {saved_image}")
                 save_detection(
                     detection_type='fall',
                     confidence=detection['confidence'],
                     camera_source='live',
+                    image_data=saved_image,
                     notes=f"Bounding box: {detection['bbox']}"
                 )
-                print(f"💾 Fall saved to database! Confidence: {detection['confidence']:.2f}")
-            else:
-                print(f"⏸️ Cooldown active - skipping database save")
-        else:
-            print(f"🔍 DEBUG: Skipping '{detection['class']}' - not a fall")
+                print(f"Fall saved to database with image!")
+                break  # Only save once per captured image
     
     return {
         "frame": frame_b64,
         "detections": detections,
         "timestamp": datetime.now().isoformat()
     }
-
+    
 @app.get("/live/stream-url")
 def get_stream_url():
     """Get RTSP stream URL for direct video playback"""
@@ -463,6 +456,16 @@ def update_single_setting(key: str, value: str):
         }
     else:
         raise HTTPException(status_code=404, detail=f"Setting '{key}' not found")
+
+@app.get("/images/{filename}")
+def get_image(filename: str):
+    """Serve detection images"""
+    image_path = Path(__file__).parent / "images" / filename
+    
+    if not image_path.exists():
+        raise HTTPException(status_code=404, detail="Image not found")
+    
+    return FileResponse(path=str(image_path), media_type="image/jpeg")
 
 # Run with: uvicorn app:app --reload --host 0.0.0.0 --port 8000
 if __name__ == "__main__":

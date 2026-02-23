@@ -5,6 +5,7 @@ import Dashboard from './components/Dashboard';
 import VideoUpload from './components/VideoUpload';
 import LiveDetection from './components/LiveDetection';
 import Login from './pages/Login';
+import Logs from './pages/Logs';
 import Settings from './pages/Settings';
 import AnimatedLayout from './components/AnimatedLayout';  // ADD THISimport Login from './pages/Login';
 
@@ -24,7 +25,7 @@ function App() {
           <Route path="detection" element={<VideoUpload />} />
           <Route path="live" element={<LiveDetection />} />
           <Route path="analytics" element={<ComingSoon page="Analytics" />} />
-          <Route path="logs" element={<ComingSoon page="Logs" />} />
+          <Route path="logs" element={<Logs />} />
           <Route path="settings" element={<Settings />} />
         </Route>
       </Routes>

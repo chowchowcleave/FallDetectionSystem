@@ -93,7 +93,7 @@ def get_all_detections(limit=100):
     cursor = conn.cursor()
     
     cursor.execute('''
-        SELECT id, timestamp, detection_type, confidence, camera_source, notes
+        SELECT id, timestamp, detection_type, confidence, camera_source, image_data, notes
         FROM detections
         ORDER BY timestamp DESC
         LIMIT ?
@@ -145,12 +145,37 @@ def get_detection_stats():
     }
 
 def delete_all_detections():
-    """Delete all detections (for testing)"""
+    """Delete all detections and their associated images"""
+    import os
+    
     conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
+    
+    # Get all image filenames before deleting
+    cursor.execute('SELECT image_data FROM detections WHERE image_data IS NOT NULL')
+    images = cursor.fetchall()
+    
+    # Delete from database
     cursor.execute('DELETE FROM detections')
     conn.commit()
     conn.close()
+    
+    # Delete image files
+    images_dir = DB_PATH.parent / "images"
+    deleted_count = 0
+    
+    for row in images:
+        if row['image_data']:
+            image_path = images_dir / row['image_data']
+            if image_path.exists():
+                try:
+                    os.remove(image_path)
+                    deleted_count += 1
+                except Exception as e:
+                    print(f"Failed to delete image {row['image_data']}: {e}")
+    
+    print(f"Deleted {deleted_count} image files")
 
 # ==================== USER AUTHENTICATION FUNCTIONS ====================
 
