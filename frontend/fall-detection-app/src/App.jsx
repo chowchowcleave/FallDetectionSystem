@@ -1,13 +1,12 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import Layout from './components/Layout';
 import Dashboard from './components/Dashboard';
 import VideoUpload from './components/VideoUpload';
-import LiveDetection from './components/LiveDetection';
 import Login from './pages/Login';
 import Logs from './pages/Logs';
 import Settings from './pages/Settings';
-import AnimatedLayout from './components/AnimatedLayout';  // ADD THISimport Login from './pages/Login';
+import AnimatedLayout from './components/AnimatedLayout';
+import ProtectedRoute from './components/ProtectedRoute';
 
 function App() {
   return (
@@ -15,15 +14,19 @@ function App() {
       <Routes>
         {/* Redirect root to login */}
         <Route path="/" element={<Navigate to="/login" replace />} />
-        
+
         {/* Login Route - No Layout */}
         <Route path="/login" element={<Login />} />
-        
+
         {/* Protected Routes - With Animated Layout */}
-        <Route element={<AnimatedLayout />}>
+        <Route element={
+          <ProtectedRoute>
+            <AnimatedLayout />
+          </ProtectedRoute>
+        }>
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="detection" element={<VideoUpload />} />
-          <Route path="live" element={<LiveDetection />} />
+          <Route path="live" element={<div />} />
           <Route path="analytics" element={<ComingSoon page="Analytics" />} />
           <Route path="logs" element={<Logs />} />
           <Route path="settings" element={<Settings />} />

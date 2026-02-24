@@ -89,7 +89,7 @@ def save_detection(detection_type, confidence, camera_source="live", image_data=
 def get_all_detections(limit=100):
     """Get all detections from database"""
     conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row  # Return rows as dictionaries
+    conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     
     cursor.execute('''
@@ -102,7 +102,6 @@ def get_all_detections(limit=100):
     rows = cursor.fetchall()
     conn.close()
     
-    # Convert to list of dicts
     detections = [dict(row) for row in rows]
     return detections
 
@@ -198,7 +197,7 @@ def create_user(username, password, role='user'):
         return user_id
     except sqlite3.IntegrityError:
         conn.close()
-        return None  # Username already exists
+        return None
 
 def verify_user(username, password):
     """Verify username and password, return user info if valid"""
@@ -269,14 +268,12 @@ def delete_user(user_id):
 
 def change_password(username, current_password, new_password):
     """Change user password after verifying current password"""
-    # Hash the current password to verify
     current_hash = hashlib.sha256(current_password.encode()).hexdigest()
     new_hash = hashlib.sha256(new_password.encode()).hexdigest()
     
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     
-    # Verify current password
     cursor.execute('''
         SELECT id FROM users
         WHERE username = ? AND password_hash = ?
@@ -286,9 +283,8 @@ def change_password(username, current_password, new_password):
     
     if not user:
         conn.close()
-        return False  # Current password is incorrect
+        return False
     
-    # Update to new password
     cursor.execute('''
         UPDATE users
         SET password_hash = ?
@@ -298,7 +294,7 @@ def change_password(username, current_password, new_password):
     conn.commit()
     conn.close()
     
-    return True  # Password changed successfully
+    return True
 
 # ==================== SETTINGS FUNCTIONS ====================
 
@@ -325,14 +321,12 @@ def create_default_settings():
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     
-    # Check if settings exist
     cursor.execute('SELECT COUNT(*) FROM settings')
     count = cursor.fetchone()[0]
     
     if count == 0:
         now = datetime.now().isoformat()
         
-        # Default settings
         default_settings = [
             # Camera Settings
             ('camera_url', 'rtsp://chamsroom:admin123@192.168.101.13:554/stream1'),
@@ -345,6 +339,7 @@ def create_default_settings():
             ('cooldown_seconds', '30'),
             ('enable_fall_detection', 'true'),
             ('enable_fighting_detection', 'false'),
+            ('person_tracking_confidence', '0.45'),  # NEW
             
             # Alert Settings
             ('alert_email_enabled', 'false'),
@@ -413,7 +408,6 @@ def get_all_settings():
     
     conn.close()
     
-    # Convert to dictionary
     settings = {row['setting_key']: row['setting_value'] for row in rows}
     return settings
 
@@ -433,6 +427,7 @@ def get_settings_by_category():
             'cooldown_seconds': int(all_settings.get('cooldown_seconds', 30)),
             'enable_fall_detection': all_settings.get('enable_fall_detection', 'true') == 'true',
             'enable_fighting_detection': all_settings.get('enable_fighting_detection', 'false') == 'true',
+            'person_tracking_confidence': float(all_settings.get('person_tracking_confidence', 0.45)),  # NEW
         },
         'alerts': {
             'email_enabled': all_settings.get('alert_email_enabled', 'false') == 'true',

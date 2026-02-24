@@ -6,6 +6,9 @@ import { api } from '../services/api';
 
 function Navbar() {
   const navigate = useNavigate();
+  
+  const user = JSON.parse(localStorage.getItem('user') || '{}');
+
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -29,11 +32,10 @@ function Navbar() {
     setShowLogoutModal(false);
   };
 
-const handleChangePassword = async () => {
+  const handleChangePassword = async () => {
     setPasswordError('');
     setPasswordSuccess('');
 
-    // Validation
     if (!currentPassword || !newPassword || !confirmPassword) {
       setPasswordError('All fields are required');
       return;
@@ -50,7 +52,6 @@ const handleChangePassword = async () => {
     }
 
     try {
-      // Call API to change password
       const response = await api.changePassword(user.username, currentPassword, newPassword);
       
       if (response.success) {
@@ -71,9 +72,6 @@ const handleChangePassword = async () => {
       }
     }
   };
-  
-  // Get user info from localStorage
-  const user = JSON.parse(localStorage.getItem('user') || '{}');
 
   return (
     <>
@@ -89,13 +87,11 @@ const handleChangePassword = async () => {
         </div>
 
         <div style={styles.right}>
-          {/* Notifications */}
           <button style={styles.iconButton}>
             <Bell size={20} />
             <span style={styles.badge}>3</span>
           </button>
 
-          {/* User Menu with Dropdown */}
           <div style={styles.userMenuContainer}>
             <div 
               style={styles.userSection}
@@ -117,15 +113,11 @@ const handleChangePassword = async () => {
               />
             </div>
 
-            {/* Dropdown Menu */}
             {showUserDropdown && (
               <div style={styles.dropdown}>
                 <button 
                   style={styles.dropdownItem}
-                  onClick={() => {
-                    setShowUserDropdown(false);
-                    // TODO: Navigate to profile page
-                  }}
+                  onClick={() => setShowUserDropdown(false)}
                 >
                   <User size={16} />
                   <span>My Profile</span>
@@ -266,7 +258,6 @@ const handleChangePassword = async () => {
         </div>
       )}
 
-      {/* Click outside to close dropdown */}
       {showUserDropdown && (
         <div 
           style={styles.dropdownBackdrop}
@@ -383,8 +374,6 @@ const styles = {
     color: '#7f8c8d',
     transition: 'transform 0.3s',
   },
-  
-  // Dropdown Menu
   dropdown: {
     position: 'absolute',
     top: '100%',
@@ -429,8 +418,6 @@ const styles = {
     bottom: 0,
     zIndex: 99,
   },
-  
-  // Modal Styles
   modalOverlay: {
     position: 'fixed',
     top: 0,
@@ -496,8 +483,6 @@ const styles = {
     cursor: 'pointer',
     transition: 'all 0.3s',
   },
-  
-  // Password Modal
   passwordModal: {
     backgroundColor: '#ffffff',
     borderRadius: '16px',

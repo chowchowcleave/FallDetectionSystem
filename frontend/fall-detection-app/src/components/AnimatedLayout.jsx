@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { Outlet } from 'react-router-dom';
+import { Outlet, useLocation } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Navbar from './Navbar';
+import LiveDetection from './LiveDetection';
 
 function AnimatedLayout() {
   const [isVisible, setIsVisible] = useState(false);
+  const location = useLocation();
+  const isLivePage = location.pathname === '/live';
 
   useEffect(() => {
-    // Trigger animations after component mounts
     setTimeout(() => setIsVisible(true), 50);
   }, []);
 
@@ -40,7 +42,7 @@ function AnimatedLayout() {
       }}>
         <Navbar />
         
-        <main style={{
+        <main id="main-content" style={{
           flex: '1 1 0',
           minWidth: 0,
           overflow: 'auto',
@@ -49,8 +51,17 @@ function AnimatedLayout() {
           opacity: isVisible ? 1 : 0,
           transform: isVisible ? 'scale(1)' : 'scale(0.95)',
           transition: 'all 0.6s ease-out 0.2s',
+          position: 'relative',
         }}>
-          <Outlet />
+          {/* LiveDetection stays mounted always, just hidden when not on /live */}
+          <div style={{ display: isLivePage ? 'block' : 'none' }}>
+            <LiveDetection />
+          </div>
+
+          {/* All other pages render normally */}
+          <div style={{ display: isLivePage ? 'none' : 'block' }}>
+            <Outlet />
+          </div>
         </main>
       </div>
     </div>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Save, Camera, Target, Bell, Info, Check, X } from 'lucide-react';
-import axios from 'axios';
+import { api } from '../services/api';
 
 function Settings() {
   const [activeTab, setActiveTab] = useState('camera');
@@ -14,16 +14,15 @@ function Settings() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
 
-  // Load settings on mount
   useEffect(() => {
     loadSettings();
   }, []);
 
   const loadSettings = async () => {
     try {
-      const response = await axios.get('http://localhost:8000/settings');
-      if (response.data.success) {
-        setSettings(response.data.settings);
+      const data = await api.getSettings();
+      if (data.success) {
+        setSettings(data.settings);
       }
       setLoading(false);
     } catch (error) {
@@ -48,27 +47,27 @@ function Settings() {
     setMessage({ type: '', text: '' });
 
     try {
-      // Flatten settings for API
       const flatSettings = {
         // Camera
         camera_url: settings.camera.url,
         camera_username: settings.camera.username,
         camera_password: settings.camera.password,
         camera_location: settings.camera.location,
-        
+
         // Detection
         confidence_threshold: settings.detection.confidence_threshold,
         cooldown_seconds: settings.detection.cooldown_seconds,
         enable_fall_detection: settings.detection.enable_fall_detection,
         enable_fighting_detection: settings.detection.enable_fighting_detection,
-        
+        person_tracking_confidence: settings.detection.person_tracking_confidence, // NEW
+
         // Alerts
         alert_email_enabled: settings.alerts.email_enabled,
         alert_email_address: settings.alerts.email_address,
         alert_sms_enabled: settings.alerts.sms_enabled,
         alert_phone_number: settings.alerts.phone_number,
         alert_sound_enabled: settings.alerts.sound_enabled,
-        
+
         // System
         organization_name: settings.system.organization_name,
         contact_person: settings.system.contact_person,
@@ -76,9 +75,9 @@ function Settings() {
         system_location: settings.system.system_location,
       };
 
-      const response = await axios.post('http://localhost:8000/settings/update', flatSettings);
-      
-      if (response.data.success) {
+      const data = await api.updateSettings(flatSettings);
+
+      if (data.success) {
         setMessage({ type: 'success', text: 'Settings saved successfully!' });
         setTimeout(() => setMessage({ type: '', text: '' }), 3000);
       }
@@ -108,13 +107,11 @@ function Settings() {
 
   return (
     <div style={styles.container}>
-      {/* Header */}
       <div style={styles.header}>
         <h1 style={styles.title}>Settings</h1>
         <p style={styles.subtitle}>Configure your fall detection system</p>
       </div>
 
-      {/* Message Alert */}
       {message.text && (
         <div style={{
           ...styles.alert,
@@ -125,7 +122,6 @@ function Settings() {
         </div>
       )}
 
-      {/* Tabs */}
       <div style={styles.tabs}>
         {tabs.map(tab => {
           const Icon = tab.icon;
@@ -145,13 +141,12 @@ function Settings() {
         })}
       </div>
 
-      {/* Settings Content */}
       <div style={styles.content}>
         {/* Camera Settings */}
         {activeTab === 'camera' && (
           <div style={styles.section}>
             <h2 style={styles.sectionTitle}>Camera Configuration</h2>
-            
+
             <div style={styles.field}>
               <label style={styles.label}>RTSP URL</label>
               <input
@@ -205,10 +200,10 @@ function Settings() {
         {activeTab === 'detection' && (
           <div style={styles.section}>
             <h2 style={styles.sectionTitle}>Detection Configuration</h2>
-            
+
             <div style={styles.field}>
               <label style={styles.label}>
-                Confidence Threshold: {(settings.detection.confidence_threshold * 100).toFixed(0)}%
+                Fall Detection Confidence: {(settings.detection.confidence_threshold * 100).toFixed(0)}%
               </label>
               <input
                 type="range"
@@ -220,6 +215,23 @@ function Settings() {
                 style={styles.slider}
               />
               <p style={styles.hint}>Higher values = fewer false alarms, but might miss some falls</p>
+            </div>
+
+            {/* NEW - Person Tracking Confidence Slider */}
+            <div style={styles.field}>
+              <label style={styles.label}>
+                Person Tracking Confidence: {(settings.detection.person_tracking_confidence * 100).toFixed(0)}%
+              </label>
+              <input
+                type="range"
+                min="0.3"
+                max="0.8"
+                step="0.05"
+                value={settings.detection.person_tracking_confidence || 0.45}
+                onChange={(e) => handleInputChange('detection', 'person_tracking_confidence', parseFloat(e.target.value))}
+                style={styles.slider}
+              />
+              <p style={styles.hint}>Lower values = more consistent tracking, higher values = fewer false person detections</p>
             </div>
 
             <div style={styles.field}>
@@ -265,7 +277,7 @@ function Settings() {
         {activeTab === 'alerts' && (
           <div style={styles.section}>
             <h2 style={styles.sectionTitle}>Alert Preferences</h2>
-            
+
             <div style={styles.field}>
               <label style={styles.checkboxLabel}>
                 <input
@@ -334,7 +346,7 @@ function Settings() {
         {activeTab === 'system' && (
           <div style={styles.section}>
             <h2 style={styles.sectionTitle}>System Information</h2>
-            
+
             <div style={styles.field}>
               <label style={styles.label}>Organization Name</label>
               <input
@@ -382,7 +394,6 @@ function Settings() {
         )}
       </div>
 
-      {/* Save Button */}
       <div style={styles.footer}>
         <button
           onClick={handleSave}
@@ -571,7 +582,6 @@ const styles = {
   },
 };
 
-// Add spinner animation
 const styleSheet = document.createElement('style');
 styleSheet.textContent = `
   @keyframes spin {

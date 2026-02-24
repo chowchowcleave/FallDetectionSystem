@@ -30,8 +30,6 @@ function LiveDetection() {
       await api.stopLiveDetection();
       setIsRunning(false);
       stopFramePolling();
-      setCurrentFrame(null);
-      setDetections([]);
     } catch (error) {
       alert('Error: ' + error.message);
     }
@@ -43,8 +41,7 @@ function LiveDetection() {
         const data = await api.getLiveFrame();
         setCurrentFrame(data.frame);
         setDetections(data.detections || []);
-        
-        // Count falls
+
         const falls = data.detections.filter(d => d.class === 'fall');
         if (falls.length > 0) {
           setFallCount(prev => prev + 1);
@@ -52,7 +49,7 @@ function LiveDetection() {
       } catch (error) {
         console.error('Frame error:', error);
       }
-    }, 120); // Adjusted for better quality - ~8 FPS
+    }, 120);
   };
 
   const stopFramePolling = () => {
@@ -60,6 +57,8 @@ function LiveDetection() {
       clearInterval(intervalRef.current);
       intervalRef.current = null;
     }
+    setDetections([]);
+    setCurrentFrame(null);
   };
 
   useEffect(() => {
@@ -67,6 +66,18 @@ function LiveDetection() {
       stopFramePolling();
     };
   }, []);
+
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      api.stopLiveDetection();
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, []);
+
+  const isFall = (det) => det.class === 'fall';
 
   return (
     <div style={styles.container}>
@@ -78,7 +89,7 @@ function LiveDetection() {
       {/* Control Buttons */}
       <div style={styles.controls}>
         {!isRunning ? (
-          <button 
+          <button
             onClick={startDetection}
             disabled={loading}
             style={{
@@ -90,7 +101,7 @@ function LiveDetection() {
             {loading ? '⏳ Connecting...' : '▶️ Start Live Detection'}
           </button>
         ) : (
-          <button 
+          <button
             onClick={stopDetection}
             style={{...styles.button, ...styles.stopButton}}
           >
@@ -99,28 +110,30 @@ function LiveDetection() {
         )}
       </div>
 
-      {/* Stats */}
-      {isRunning && (
-        <div style={styles.statsRow}>
-          <div style={styles.statBox}>
-            <p style={styles.statLabel}>Status</p>
-            <p style={{...styles.statValue, color: '#2ecc71'}}>🟢 Live</p>
-          </div>
-          <div style={styles.statBox}>
-            <p style={styles.statLabel}>Falls Detected</p>
-            <p style={{...styles.statValue, color: '#e74c3c'}}>{fallCount}</p>
-          </div>
-          <div style={styles.statBox}>
-            <p style={styles.statLabel}>Current Detections</p>
-            <p style={styles.statValue}>{detections.length}</p>
-          </div>
+      {/* Stats - always rendered, hidden when not running */}
+      <div style={{
+        ...styles.statsRow,
+        opacity: isRunning ? 1 : 0,
+        pointerEvents: isRunning ? 'auto' : 'none',
+      }}>
+        <div style={styles.statBox}>
+          <p style={styles.statLabel}>Status</p>
+          <p style={{...styles.statValue, color: '#2ecc71'}}>🟢 Live</p>
         </div>
-      )}
+        <div style={styles.statBox}>
+          <p style={styles.statLabel}>Falls Detected</p>
+          <p style={{...styles.statValue, color: '#e74c3c'}}>{fallCount}</p>
+        </div>
+        <div style={styles.statBox}>
+          <p style={styles.statLabel}>Persons in Frame</p>
+          <p style={styles.statValue}>{detections.length}</p>
+        </div>
+      </div>
 
       {/* Video Feed */}
       <div style={styles.videoContainer}>
-        {currentFrame ? (
-          <img 
+        {currentFrame && isRunning ? (
+          <img
             src={`data:image/jpeg;base64,${currentFrame}`}
             alt="Live feed"
             style={styles.video}
@@ -134,28 +147,39 @@ function LiveDetection() {
         )}
       </div>
 
-      {/* Detection List */}
-      {detections.length > 0 && (
-        <div style={styles.detectionList}>
-          <h3 style={styles.detectionTitle}>Current Detections:</h3>
-          {detections.map((det, idx) => (
-            <div 
+      {/* Detection List - always rendered, hidden when not running */}
+      <div style={{
+        ...styles.detectionList,
+        opacity: isRunning ? 1 : 0,
+        pointerEvents: isRunning ? 'auto' : 'none',
+      }}>
+        <h3 style={styles.detectionTitle}>Current Detections:</h3>
+        {detections.length === 0 ? (
+          <p style={styles.noDetections}>No detections</p>
+        ) : (
+          detections.map((det, idx) => (
+            <div
               key={idx}
               style={{
                 ...styles.detectionItem,
-                borderLeftColor: det.class === 'fall' ? '#e74c3c' : '#2ecc71'
+                borderLeftColor: isFall(det) ? '#e74c3c' : '#2ecc71'
               }}
             >
-              <span style={styles.detectionClass}>
-                {det.class === 'fall' ? '⚠️ FALL' : '✅ ' + det.class.toUpperCase()}
-              </span>
+              <div style={styles.detectionLeft}>
+                <span style={styles.detectionClass}>
+                  {isFall(det) ? '⚠️ FALL' : '🧍 Person'}
+                </span>
+                {det.track_id && (
+                  <span style={styles.trackId}>#{det.track_id}</span>
+                )}
+              </div>
               <span style={styles.detectionConf}>
                 {(det.confidence * 100).toFixed(1)}%
               </span>
             </div>
-          ))}
-        </div>
-      )}
+          ))
+        )}
+      </div>
     </div>
   );
 }
@@ -203,6 +227,7 @@ const styles = {
     gridTemplateColumns: 'repeat(3, 1fr)',
     gap: '20px',
     marginBottom: '30px',
+    transition: 'opacity 0.3s',
   },
   statBox: {
     backgroundColor: '#ffffff',
@@ -227,14 +252,16 @@ const styles = {
     borderRadius: '12px',
     overflow: 'hidden',
     marginBottom: '30px',
-    minHeight: '400px',
+    height: '400px',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
+    position: 'relative',
   },
   video: {
     width: '100%',
-    height: 'auto',
+    height: '100%',
+    objectFit: 'contain',
     display: 'block',
   },
   placeholder: {
@@ -251,6 +278,9 @@ const styles = {
     padding: '20px',
     borderRadius: '8px',
     boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+    height: '180px',
+    overflowY: 'auto',
+    transition: 'opacity 0.3s',
   },
   detectionTitle: {
     fontSize: '18px',
@@ -259,19 +289,40 @@ const styles = {
     marginTop: 0,
     marginBottom: '16px',
   },
+  noDetections: {
+    fontSize: '14px',
+    color: '#7f8c8d',
+    margin: 0,
+    textAlign: 'center',
+    paddingTop: '20px',
+  },
   detectionItem: {
     display: 'flex',
     justifyContent: 'space-between',
+    alignItems: 'center',
     padding: '12px 16px',
     backgroundColor: '#f8f9fa',
     borderRadius: '6px',
     borderLeft: '4px solid',
     marginBottom: '8px',
   },
+  detectionLeft: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '10px',
+  },
   detectionClass: {
     fontWeight: '600',
     fontSize: '14px',
     color: '#2c3e50',
+  },
+  trackId: {
+    fontSize: '13px',
+    fontWeight: '700',
+    color: '#3498db',
+    backgroundColor: '#ebf5fb',
+    padding: '2px 8px',
+    borderRadius: '12px',
   },
   detectionConf: {
     fontSize: '14px',

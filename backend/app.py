@@ -18,7 +18,7 @@ app = FastAPI(title="Fall Detection API", version="1.0")
 # CORS middleware (allows React frontend to connect)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, specify your frontend URL
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -26,8 +26,13 @@ app.add_middleware(
 
 # Load the trained model (do this once at startup)
 MODEL_PATH = r"C:\Users\user\Desktop\FallDetection\models\best.pt"
+POSE_MODEL_PATH = r"C:\Users\user\Desktop\FallDetection\models\yolov8n-pose.pt"  # NEW
+
 model = YOLO(MODEL_PATH)
+pose_model = YOLO(POSE_MODEL_PATH)  # NEW
+
 print(f"✅ Model loaded from: {MODEL_PATH}")
+print(f"✅ Pose model loaded from: {POSE_MODEL_PATH}")  # NEW
 
 # Directories
 UPLOAD_DIR = Path(r"C:\Users\user\Desktop\FallDetection\backend\uploads")
@@ -79,6 +84,7 @@ def health_check():
     return {
         "status": "healthy",
         "model_loaded": True,
+        "pose_model_loaded": True,  # NEW
         "timestamp": datetime.now().isoformat()
     }
 
@@ -87,6 +93,7 @@ def health_check():
 def model_info():
     return {
         "model_path": MODEL_PATH,
+        "pose_model_path": POSE_MODEL_PATH,  # NEW
         "model_type": "YOLOv8",
         "classes": model.names,
         "input_size": 640
@@ -99,33 +106,28 @@ async def detect_video(file: UploadFile = File(...)):
     Upload a video file and get fall detection results
     """
     try:
-        # Validate file type
         if not file.filename.endswith(('.mp4', '.avi', '.mov', '.mkv')):
             raise HTTPException(status_code=400, detail="Invalid file format. Use mp4, avi, mov, or mkv")
         
-        # Generate unique filename
         file_id = str(uuid.uuid4())[:8]
         input_filename = f"{file_id}_{file.filename}"
         input_path = UPLOAD_DIR / input_filename
         
-        # Save uploaded file
         with open(input_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
         
         print(f"📥 Processing: {input_filename}")
         
-        # Run detection
         confidence = get_confidence()
         results = model(
             source=str(input_path),
-            conf=confidence,  # Confidence threshold from settings
+            conf=confidence,
             save=True,
             project=str(OUTPUT_DIR),
             name=file_id,
             exist_ok=True
         )
         
-        # Count detections
         total_detections = 0
         detections_by_frame = []
         
@@ -145,7 +147,6 @@ async def detect_video(file: UploadFile = File(...)):
                         "bbox": box.xyxy[0].tolist()
                     })
                     
-                    # 🆕 AUTO-SAVE FALLS TO DATABASE FROM VIDEO UPLOAD!
                     if 'fall' in detection_class.lower():
                         save_detection(
                             detection_type='fall',
@@ -155,7 +156,6 @@ async def detect_video(file: UploadFile = File(...)):
                         )
                         print(f"💾 Fall saved to database from video! Frame {i}, Confidence: {confidence:.2f}")
         
-        # Check what file YOLO actually saved (it might be .avi instead of .mp4)
         output_dir = OUTPUT_DIR / file_id
         saved_files = list(output_dir.glob(f"{file_id}_*"))
         actual_filename = saved_files[0].name if saved_files else input_filename
@@ -165,16 +165,13 @@ async def detect_video(file: UploadFile = File(...)):
         response = {
             "success": True,
             "file_id": file_id,
-            "filename": actual_filename,  # Return the actual saved filename
+            "filename": actual_filename,
             "total_frames": len(results),
             "total_detections": total_detections,
             "detections": detections_by_frame[:10],
             "output_video": str(OUTPUT_DIR / file_id / actual_filename),
             "timestamp": datetime.now().isoformat()
         }
-        
-        # Clean up input file (optional)
-        # os.remove(input_path)
         
         print(f"✅ Processed: {total_detections} detections found")
         return JSONResponse(content=response)
@@ -186,15 +183,11 @@ async def detect_video(file: UploadFile = File(...)):
 # Download processed video
 @app.get("/download/{file_id}/{filename}")
 def download_video(file_id: str, filename: str):
-    """
-    Download the processed video with bounding boxes
-    """
     video_path = OUTPUT_DIR / file_id / filename
     
     if not video_path.exists():
         raise HTTPException(status_code=404, detail="Video not found")
     
-    # Detect media type based on file extension
     if filename.endswith('.avi'):
         media_type = "video/x-msvideo"
     elif filename.endswith('.mov'):
@@ -220,9 +213,8 @@ def start_live_detection():
     if live_detector and live_detector.is_running:
         return {"status": "already_running"}
     
-    # Get camera URL from settings
     camera_url = get_camera_url()
-    live_detector = LiveDetector(MODEL_PATH, camera_url)
+    live_detector = LiveDetector(MODEL_PATH, camera_url, pose_model)  # NEW - pass pose_model
     
     if live_detector.connect_camera():
         return {
@@ -260,7 +252,6 @@ def get_live_frame():
     if frame_b64 is None:
         raise HTTPException(status_code=500, detail="Failed to read frame")
     
-    # Only save to database if an image was captured (cooldown logic is in live_detection.py)
     if saved_image:
         for detection in detections:
             if 'fall' in detection['class'].lower():
@@ -273,7 +264,7 @@ def get_live_frame():
                     notes=f"Bounding box: {detection['bbox']}"
                 )
                 print(f"Fall saved to database with image!")
-                break  # Only save once per captured image
+                break
     
     return {
         "frame": frame_b64,
@@ -294,7 +285,6 @@ def get_stream_url():
 
 @app.get("/logs/list")
 def list_detections(limit: int = 100):
-    """Get list of all detections"""
     detections = get_all_detections(limit=limit)
     return {
         "detections": detections,
@@ -303,7 +293,6 @@ def list_detections(limit: int = 100):
 
 @app.get("/logs/stats")
 def get_stats():
-    """Get detection statistics for analytics"""
     stats = get_detection_stats()
     return stats
 
@@ -314,7 +303,6 @@ def manual_save_detection(
     camera_source: str = "manual",
     notes: str = None
 ):
-    """Manually save a detection (for testing)"""
     detection_id = save_detection(
         detection_type=detection_type,
         confidence=confidence,
@@ -329,7 +317,6 @@ def manual_save_detection(
 
 @app.delete("/logs/delete-all")
 def delete_all():
-    """Delete all detections from database (for testing/reset)"""
     delete_all_detections()
     return {
         "success": True,
@@ -340,7 +327,6 @@ def delete_all():
 
 @app.post("/auth/login")
 def login(username: str, password: str):
-    """Login endpoint - verify credentials"""
     user = verify_user(username, password)
     
     if user:
@@ -358,8 +344,6 @@ def login(username: str, password: str):
 
 @app.post("/auth/register")
 def register(username: str, password: str, role: str = "user"):
-    """Register new user endpoint"""
-    # Check if username already exists
     user_id = create_user(username, password, role)
     if user_id:
         return {
@@ -372,7 +356,6 @@ def register(username: str, password: str, role: str = "user"):
 
 @app.get("/auth/users")
 def list_users():
-    """Get all users (admin only in production)"""
     users = get_all_users()
     return {
         "users": users,
@@ -381,7 +364,6 @@ def list_users():
 
 @app.delete("/auth/users/{user_id}")
 def remove_user(user_id: int):
-    """Delete a user (admin only in production)"""
     delete_user(user_id)
     return {
         "success": True,
@@ -390,7 +372,6 @@ def remove_user(user_id: int):
 
 @app.post("/auth/change-password")
 def change_user_password(username: str, current_password: str, new_password: str):
-    """Change user password"""
     if change_password(username, current_password, new_password):
         return {
             "success": True,
@@ -403,7 +384,6 @@ def change_user_password(username: str, current_password: str, new_password: str
 
 @app.get("/settings")
 def get_settings():
-    """Get all settings organized by category"""
     settings = get_settings_by_category()
     return {
         "success": True,
@@ -412,7 +392,6 @@ def get_settings():
 
 @app.get("/settings/raw")
 def get_raw_settings():
-    """Get all settings as flat key-value pairs"""
     settings = get_all_settings()
     return {
         "success": True,
@@ -421,15 +400,12 @@ def get_raw_settings():
 
 @app.post("/settings/update")
 def update_settings(settings: dict):
-    """Update multiple settings at once"""
     try:
         updated_count = 0
         
         for key, value in settings.items():
-            # Convert boolean to string for storage
             if isinstance(value, bool):
                 value = 'true' if value else 'false'
-            # Convert numbers to string for storage
             elif isinstance(value, (int, float)):
                 value = str(value)
             
@@ -446,7 +422,6 @@ def update_settings(settings: dict):
 
 @app.post("/settings/{key}")
 def update_single_setting(key: str, value: str):
-    """Update a single setting"""
     if update_setting(key, value):
         return {
             "success": True,
@@ -459,7 +434,6 @@ def update_single_setting(key: str, value: str):
 
 @app.get("/images/{filename}")
 def get_image(filename: str):
-    """Serve detection images"""
     image_path = Path(__file__).parent / "images" / filename
     
     if not image_path.exists():

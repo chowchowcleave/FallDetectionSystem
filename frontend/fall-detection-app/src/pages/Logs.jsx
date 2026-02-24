@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Calendar, Filter, X, Download, Trash2 } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { Search, X, Trash2, AlertCircle } from 'lucide-react';
+import { api } from '../services/api';
 
 function Logs() {
   const [logs, setLogs] = useState([]);
@@ -7,23 +9,50 @@ function Logs() {
   const [selectedImage, setSelectedImage] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterSource, setFilterSource] = useState('all');
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   useEffect(() => {
     fetchLogs();
   }, []);
 
- const fetchLogs = async () => {
-  try {
-    const response = await fetch('http://localhost:8000/logs/list?limit=100');
-    const data = await response.json();
-    
-    setLogs(data.detections);
-    setLoading(false);
-  } catch (error) {
-    console.error('Failed to fetch logs:', error);
-    setLoading(false);
-  }
-};
+  // Cleanup scroll lock on unmount
+  useEffect(() => {
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, []);
+
+  const fetchLogs = async () => {
+    try {
+      const data = await api.getLogs();
+      setLogs(data.detections);
+      setLoading(false);
+    } catch (error) {
+      console.error('Failed to fetch logs:', error);
+      setLoading(false);
+    }
+  };
+
+  const openImage = (url) => {
+    setSelectedImage(url);
+    document.body.style.overflow = 'hidden';
+  };
+
+  const closeImage = () => {
+    setSelectedImage(null);
+    document.body.style.overflow = 'unset';
+  };
+
+  const handleDeleteAll = async () => {
+    try {
+      await api.deleteAllLogs();
+      setShowDeleteModal(false);
+      fetchLogs();
+    } catch (error) {
+      console.error('Failed to delete logs:', error);
+    }
+  };
+
   const filteredLogs = logs.filter(log => {
     const matchesSearch = log.notes?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          log.detection_type.toLowerCase().includes(searchTerm.toLowerCase());
@@ -43,22 +72,6 @@ function Logs() {
     });
   };
 
-  const getImageUrl = (filename) => {
-    if (!filename) return null;
-    return `http://localhost:8000/images/${filename}`;
-  };
-
-  const handleDeleteAll = async () => {
-    if (window.confirm('Are you sure you want to delete all logs? This cannot be undone.')) {
-      try {
-        await fetch('http://localhost:8000/logs/delete-all', { method: 'DELETE' });
-        fetchLogs();
-      } catch (error) {
-        console.error('Failed to delete logs:', error);
-      }
-    }
-  };
-
   return (
     <div style={styles.container}>
       <div style={styles.header}>
@@ -66,7 +79,7 @@ function Logs() {
           <h1 style={styles.title}>Detection Logs</h1>
           <p style={styles.subtitle}>View all fall detection events with captured images</p>
         </div>
-        <button style={styles.deleteButton} onClick={handleDeleteAll}>
+        <button style={styles.deleteButton} onClick={() => setShowDeleteModal(true)}>
           <Trash2 size={18} />
           Clear All Logs
         </button>
@@ -83,7 +96,6 @@ function Logs() {
             style={styles.searchInput}
           />
         </div>
-
         <select
           value={filterSource}
           onChange={(e) => setFilterSource(e.target.value)}
@@ -132,9 +144,7 @@ function Logs() {
             <tbody>
               {filteredLogs.length === 0 ? (
                 <tr>
-                  <td colSpan="6" style={styles.noData}>
-                    No logs found
-                  </td>
+                  <td colSpan="6" style={styles.noData}>No logs found</td>
                 </tr>
               ) : (
                 filteredLogs.map((log) => (
@@ -142,10 +152,10 @@ function Logs() {
                     <td style={styles.td}>
                       {log.image_data ? (
                         <img
-                          src={getImageUrl(log.image_data)}
+                          src={api.getImageUrl(log.image_data)}
                           alt="Detection"
                           style={styles.thumbnail}
-                          onClick={() => setSelectedImage(getImageUrl(log.image_data))}
+                          onClick={() => openImage(api.getImageUrl(log.image_data))}
                         />
                       ) : (
                         <div style={styles.noImage}>No Image</div>
@@ -180,15 +190,47 @@ function Logs() {
         </div>
       )}
 
-      {selectedImage && (
-        <div style={styles.modalOverlay} onClick={() => setSelectedImage(null)}>
+      {/* Image Preview Modal - rendered outside DOM via Portal */}
+      {selectedImage && createPortal(
+        <div style={styles.modalOverlay} onClick={closeImage}>
           <div style={styles.modalContent} onClick={(e) => e.stopPropagation()}>
-            <button style={styles.closeButton} onClick={() => setSelectedImage(null)}>
-              <X size={24} />
-            </button>
             <img src={selectedImage} alt="Full size" style={styles.fullImage} />
+            <button style={styles.closeButton} onClick={closeImage}>
+              <X size={20} />
+            </button>
           </div>
-        </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Delete Confirmation Modal - rendered outside DOM via Portal */}
+      {showDeleteModal && createPortal(
+        <div style={styles.modalOverlay} onClick={() => setShowDeleteModal(false)}>
+          <div style={styles.confirmModal} onClick={(e) => e.stopPropagation()}>
+            <div style={styles.modalIcon}>
+              <AlertCircle size={48} color="#e74c3c" />
+            </div>
+            <h2 style={styles.modalTitle}>Clear All Logs</h2>
+            <p style={styles.modalMessage}>
+              Are you sure you want to delete all logs? This cannot be undone.
+            </p>
+            <div style={styles.modalButtons}>
+              <button
+                style={styles.cancelButton}
+                onClick={() => setShowDeleteModal(false)}
+              >
+                Cancel
+              </button>
+              <button
+                style={styles.confirmButton}
+                onClick={handleDeleteAll}
+              >
+                Clear All
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
     </div>
   );
@@ -381,35 +423,95 @@ const styles = {
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    width: '100vw',
+    height: '100vh',
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    zIndex: 9999,
+    zIndex: 99999,
+    overflow: 'hidden',
   },
   modalContent: {
     position: 'relative',
-    maxWidth: '90%',
-    maxHeight: '90%',
+    maxWidth: '80%',
+    maxHeight: '80vh',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   closeButton: {
     position: 'absolute',
-    top: '-40px',
-    right: '0',
+    top: '-15px',
+    right: '-15px',
     background: 'white',
     border: 'none',
     borderRadius: '50%',
-    width: '40px',
-    height: '40px',
+    width: '36px',
+    height: '36px',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     cursor: 'pointer',
+    zIndex: 100000,
+    boxShadow: '0 2px 8px rgba(0,0,0,0.4)',
   },
   fullImage: {
     maxWidth: '100%',
-    maxHeight: '90vh',
+    maxHeight: '80vh',
     borderRadius: '8px',
+    display: 'block',
+  },
+  confirmModal: {
+    backgroundColor: '#ffffff',
+    borderRadius: '16px',
+    padding: '40px',
+    width: '90%',
+    maxWidth: '400px',
+    boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+    textAlign: 'center',
+  },
+  modalIcon: {
+    marginBottom: '20px',
+    display: 'flex',
+    justifyContent: 'center',
+  },
+  modalTitle: {
+    margin: '0 0 15px 0',
+    fontSize: '24px',
+    fontWeight: '700',
+    color: '#2c3e50',
+  },
+  modalMessage: {
+    margin: '0 0 30px 0',
+    fontSize: '16px',
+    color: '#7f8c8d',
+    lineHeight: '1.5',
+  },
+  modalButtons: {
+    display: 'flex',
+    gap: '12px',
+    justifyContent: 'center',
+  },
+  cancelButton: {
+    padding: '12px 24px',
+    backgroundColor: '#ecf0f1',
+    border: 'none',
+    borderRadius: '8px',
+    color: '#2c3e50',
+    fontSize: '15px',
+    fontWeight: '600',
+    cursor: 'pointer',
+  },
+  confirmButton: {
+    padding: '12px 24px',
+    backgroundColor: '#e74c3c',
+    border: 'none',
+    borderRadius: '8px',
+    color: '#ffffff',
+    fontSize: '15px',
+    fontWeight: '600',
+    cursor: 'pointer',
   },
 };
 

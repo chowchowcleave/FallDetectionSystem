@@ -57,4 +57,32 @@ export const api = {
     });
     return response.data;
   },
+
+  // Settings
+getSettings: async () => {
+  const response = await axios.get(`${API_BASE_URL}/settings`);
+  return response.data;
+},
+
+updateSettings: async (settings) => {
+  const response = await axios.post(`${API_BASE_URL}/settings/update`, settings);
+  return response.data;
+},
+
+  // Logs
+  getLogs: async (limit = 100) => {
+    const response = await axios.get(`${API_BASE_URL}/logs/list`, {
+      params: { limit }
+    });
+    return response.data;
+  },
+
+  deleteAllLogs: async () => {
+    const response = await axios.delete(`${API_BASE_URL}/logs/delete-all`);
+    return response.data;
+  },
+
+  getImageUrl: (filename) => {
+    return `${API_BASE_URL}/images/${filename}`;
+  },
 };
