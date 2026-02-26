@@ -3,11 +3,15 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, FileResponse
 from ultralytics import YOLO
 from pathlib import Path
+from dotenv import load_dotenv
 import cv2
 import shutil
 import uuid
 from datetime import datetime
 import os
+
+# Load .env file
+load_dotenv()
 
 from live_detection import LiveDetector
 from database import save_detection, get_all_detections, get_detection_stats, delete_all_detections, create_user, verify_user, get_all_users, delete_user, get_all_settings, get_settings_by_category, update_setting, change_password
@@ -15,7 +19,7 @@ from database import save_detection, get_all_detections, get_detection_stats, de
 # Initialize FastAPI app
 app = FastAPI(title="Fall Detection API", version="1.0")
 
-# CORS middleware (allows React frontend to connect)
+# CORS middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -24,19 +28,19 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Load the trained model (do this once at startup)
-MODEL_PATH = r"C:\Users\user\Desktop\FallDetection\models\best.pt"
-POSE_MODEL_PATH = r"C:\Users\user\Desktop\FallDetection\models\yolov8n-pose.pt"  # NEW
+# Load model paths from .env
+MODEL_PATH = os.getenv("MODEL_PATH")
+POSE_MODEL_PATH = os.getenv("POSE_MODEL_PATH")
 
 model = YOLO(MODEL_PATH)
-pose_model = YOLO(POSE_MODEL_PATH)  # NEW
+pose_model = YOLO(POSE_MODEL_PATH)
 
-print(f"✅ Model loaded from: {MODEL_PATH}")
-print(f"✅ Pose model loaded from: {POSE_MODEL_PATH}")  # NEW
+print(f"Model loaded from: {MODEL_PATH}")
+print(f"Pose model loaded from: {POSE_MODEL_PATH}")
 
 # Directories
-UPLOAD_DIR = Path(r"C:\Users\user\Desktop\FallDetection\backend\uploads")
-OUTPUT_DIR = Path(r"C:\Users\user\Desktop\FallDetection\backend\outputs")
+UPLOAD_DIR = Path(__file__).parent / "uploads"
+OUTPUT_DIR = Path(__file__).parent / "outputs"
 UPLOAD_DIR.mkdir(exist_ok=True)
 OUTPUT_DIR.mkdir(exist_ok=True)
 
@@ -44,8 +48,8 @@ OUTPUT_DIR.mkdir(exist_ok=True)
 from database import get_setting
 
 def get_camera_url():
-    """Get camera URL from settings"""
-    return get_setting('camera_url', 'rtsp://chamsroom:admin123@192.168.101.13:554/stream1')
+    """Get camera URL from settings, fallback to .env"""
+    return get_setting('camera_url', os.getenv('CAMERA_URL', ''))
 
 def get_confidence():
     """Get confidence threshold from settings"""
@@ -84,7 +88,7 @@ def health_check():
     return {
         "status": "healthy",
         "model_loaded": True,
-        "pose_model_loaded": True,  # NEW
+        "pose_model_loaded": True,
         "timestamp": datetime.now().isoformat()
     }
 
@@ -93,7 +97,7 @@ def health_check():
 def model_info():
     return {
         "model_path": MODEL_PATH,
-        "pose_model_path": POSE_MODEL_PATH,  # NEW
+        "pose_model_path": POSE_MODEL_PATH,
         "model_type": "YOLOv8",
         "classes": model.names,
         "input_size": 640
@@ -102,9 +106,6 @@ def model_info():
 # Video detection endpoint
 @app.post("/detect/video")
 async def detect_video(file: UploadFile = File(...)):
-    """
-    Upload a video file and get fall detection results
-    """
     try:
         if not file.filename.endswith(('.mp4', '.avi', '.mov', '.mkv')):
             raise HTTPException(status_code=400, detail="Invalid file format. Use mp4, avi, mov, or mkv")
@@ -116,7 +117,7 @@ async def detect_video(file: UploadFile = File(...)):
         with open(input_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
         
-        print(f"📥 Processing: {input_filename}")
+        print(f"Processing: {input_filename}")
         
         confidence = get_confidence()
         results = model(
@@ -154,13 +155,13 @@ async def detect_video(file: UploadFile = File(...)):
                             camera_source='upload',
                             notes=f"Video: {file.filename}, Frame: {i}"
                         )
-                        print(f"💾 Fall saved to database from video! Frame {i}, Confidence: {confidence:.2f}")
+                        print(f"Fall saved to database from video! Frame {i}, Confidence: {confidence:.2f}")
         
         output_dir = OUTPUT_DIR / file_id
         saved_files = list(output_dir.glob(f"{file_id}_*"))
         actual_filename = saved_files[0].name if saved_files else input_filename
         
-        print(f"📹 Saved as: {actual_filename}")
+        print(f"Saved as: {actual_filename}")
         
         response = {
             "success": True,
@@ -173,11 +174,11 @@ async def detect_video(file: UploadFile = File(...)):
             "timestamp": datetime.now().isoformat()
         }
         
-        print(f"✅ Processed: {total_detections} detections found")
+        print(f"Processed: {total_detections} detections found")
         return JSONResponse(content=response)
     
     except Exception as e:
-        print(f"❌ Error: {str(e)}")
+        print(f"Error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Processing failed: {str(e)}")
 
 # Download processed video
@@ -207,14 +208,13 @@ def download_video(file_id: str, filename: str):
 
 @app.get("/live/start")
 def start_live_detection():
-    """Start live detection from Tapo camera"""
     global live_detector
     
     if live_detector and live_detector.is_running:
         return {"status": "already_running"}
     
     camera_url = get_camera_url()
-    live_detector = LiveDetector(MODEL_PATH, camera_url, pose_model)  # NEW - pass pose_model
+    live_detector = LiveDetector(MODEL_PATH, camera_url, pose_model)
     
     if live_detector.connect_camera():
         return {
@@ -229,7 +229,6 @@ def start_live_detection():
 
 @app.get("/live/stop")
 def stop_live_detection():
-    """Stop live detection"""
     global live_detector
     
     if live_detector:
@@ -241,7 +240,6 @@ def stop_live_detection():
 
 @app.get("/live/frame")
 def get_live_frame():
-    """Get current frame with detections"""
     global live_detector
     
     if not live_detector or not live_detector.is_running:
@@ -274,7 +272,6 @@ def get_live_frame():
     
 @app.get("/live/stream-url")
 def get_stream_url():
-    """Get RTSP stream URL for direct video playback"""
     camera_url = get_camera_url()
     return {
         "rtsp_url": camera_url,
