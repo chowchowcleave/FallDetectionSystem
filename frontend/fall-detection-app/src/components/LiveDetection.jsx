@@ -1,5 +1,87 @@
 import React, { useState, useEffect, useRef } from 'react';
+import ReactDOM from 'react-dom';
 import { api } from '../services/api';
+import { useNotifications } from '../context/NotificationContext';
+
+// Play a beep sound using Web Audio API
+function playAlertSound() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const oscillator = ctx.createOscillator();
+    const gainNode = ctx.createGain();
+
+    oscillator.connect(gainNode);
+    gainNode.connect(ctx.destination);
+
+    oscillator.type = 'square';
+    oscillator.frequency.setValueAtTime(880, ctx.currentTime);
+    oscillator.frequency.setValueAtTime(660, ctx.currentTime + 0.1);
+    oscillator.frequency.setValueAtTime(880, ctx.currentTime + 0.2);
+
+    gainNode.gain.setValueAtTime(0.3, ctx.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+
+    oscillator.start(ctx.currentTime);
+    oscillator.stop(ctx.currentTime + 0.4);
+  } catch (e) {
+    console.warn('Audio not available:', e);
+  }
+}
+
+// Toast component
+function FallToast({ trackId, confidence, onClose }) {
+  useEffect(() => {
+    const timer = setTimeout(onClose, 5000);
+    return () => clearTimeout(timer);
+  }, [onClose]);
+
+  return ReactDOM.createPortal(
+    <div style={toastStyles.toast}>
+      <div style={toastStyles.icon}>⚠️</div>
+      <div style={toastStyles.body}>
+        <p style={toastStyles.title}>Fall Detected!</p>
+        <p style={toastStyles.sub}>
+          Person #{trackId} · {(confidence * 100).toFixed(1)}% confidence
+        </p>
+      </div>
+      <button style={toastStyles.close} onClick={onClose}>✕</button>
+    </div>,
+    document.body
+  );
+}
+
+const toastStyles = {
+  toast: {
+    position: 'fixed',
+    bottom: '30px',
+    right: '30px',
+    backgroundColor: '#e74c3c',
+    color: '#fff',
+    borderRadius: '12px',
+    padding: '16px 20px',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '12px',
+    boxShadow: '0 6px 24px rgba(231,76,60,0.4)',
+    zIndex: 99999,
+    minWidth: '280px',
+    animation: 'slideIn 0.3s ease-out',
+  },
+  icon: { fontSize: '24px', flexShrink: 0 },
+  body: { flex: 1 },
+  title: { margin: 0, fontWeight: '700', fontSize: '15px' },
+  sub: { margin: '4px 0 0 0', fontSize: '12px', opacity: 0.9 },
+  close: {
+    background: 'none',
+    border: 'none',
+    color: '#fff',
+    cursor: 'pointer',
+    fontSize: '14px',
+    padding: '0 4px',
+    opacity: 0.8,
+    flexShrink: 0,
+  },
+};
 
 function LiveDetection() {
   const [isRunning, setIsRunning] = useState(false);
@@ -7,7 +89,10 @@ function LiveDetection() {
   const [detections, setDetections] = useState([]);
   const [fallCount, setFallCount] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [toast, setToast] = useState(null);
   const intervalRef = useRef(null);
+  const activeFallIds = useRef(new Set());
+  const { addNotification } = useNotifications();
 
   const startDetection = async () => {
     setLoading(true);
@@ -42,10 +127,17 @@ function LiveDetection() {
         setCurrentFrame(data.frame);
         setDetections(data.detections || []);
 
-        const falls = data.detections.filter(d => d.class === 'fall');
-        if (falls.length > 0) {
-          setFallCount(prev => prev + 1);
-        }
+        const falls = data.detections.filter(d => d.class?.toLowerCase().includes('fall'));
+        falls.forEach(fall => {
+          const id = fall.track_id ?? 'unknown';
+          if (!activeFallIds.current.has(id)) {
+            activeFallIds.current.add(id);
+            setFallCount(prev => prev + 1);
+            addNotification(id, fall.confidence);
+            setToast({ trackId: id, confidence: fall.confidence });
+            playAlertSound();
+          }
+        });
       } catch (error) {
         console.error('Frame error:', error);
       }
@@ -59,152 +151,126 @@ function LiveDetection() {
     }
     setDetections([]);
     setCurrentFrame(null);
+    setFallCount(0);
+    setToast(null);
+    activeFallIds.current = new Set();
   };
 
   useEffect(() => {
-    return () => {
-      stopFramePolling();
-    };
+    return () => stopFramePolling();
   }, []);
 
   useEffect(() => {
-    const handleBeforeUnload = () => {
-      api.stopLiveDetection();
-    };
+    const handleBeforeUnload = () => api.stopLiveDetection();
     window.addEventListener('beforeunload', handleBeforeUnload);
-    return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-    };
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, []);
 
-  const isFall = (det) => det.class === 'fall';
-
   return (
-    <div style={styles.container}>
-      <div style={styles.header}>
-        <h1 style={styles.title}>Live Fall Detection</h1>
-        <p style={styles.subtitle}>Real-time monitoring with Tapo C210</p>
-      </div>
+    <>
+      <style>{`
+        @keyframes slideIn {
+          from { transform: translateX(100px); opacity: 0; }
+          to { transform: translateX(0); opacity: 1; }
+        }
+      `}</style>
 
-      {/* Control Buttons */}
-      <div style={styles.controls}>
-        {!isRunning ? (
-          <button
-            onClick={startDetection}
-            disabled={loading}
-            style={{
-              ...styles.button,
-              ...styles.startButton,
-              opacity: loading ? 0.5 : 1
-            }}
-          >
-            {loading ? '⏳ Connecting...' : '▶️ Start Live Detection'}
-          </button>
-        ) : (
-          <button
-            onClick={stopDetection}
-            style={{...styles.button, ...styles.stopButton}}
-          >
-            ⏹️ Stop Detection
-          </button>
-        )}
-      </div>
+      {toast && (
+        <FallToast
+          trackId={toast.trackId}
+          confidence={toast.confidence}
+          onClose={() => setToast(null)}
+        />
+      )}
 
-      {/* Stats - always rendered, hidden when not running */}
-      <div style={{
-        ...styles.statsRow,
-        opacity: isRunning ? 1 : 0,
-        pointerEvents: isRunning ? 'auto' : 'none',
-      }}>
-        <div style={styles.statBox}>
-          <p style={styles.statLabel}>Status</p>
-          <p style={{...styles.statValue, color: '#2ecc71'}}>🟢 Live</p>
+      <div style={styles.container}>
+        <div style={styles.header}>
+          <h1 style={styles.title}>Live Fall Detection</h1>
+          <p style={styles.subtitle}>Real-time monitoring with Tapo C210</p>
         </div>
-        <div style={styles.statBox}>
-          <p style={styles.statLabel}>Falls Detected</p>
-          <p style={{...styles.statValue, color: '#e74c3c'}}>{fallCount}</p>
-        </div>
-        <div style={styles.statBox}>
-          <p style={styles.statLabel}>Persons in Frame</p>
-          <p style={styles.statValue}>{detections.length}</p>
-        </div>
-      </div>
 
-      {/* Video Feed */}
-      <div style={styles.videoContainer}>
-        {currentFrame && isRunning ? (
-          <img
-            src={`data:image/jpeg;base64,${currentFrame}`}
-            alt="Live feed"
-            style={styles.video}
-          />
-        ) : (
-          <div style={styles.placeholder}>
-            <p style={styles.placeholderText}>
-              {isRunning ? 'Loading video feed...' : 'Click Start to begin monitoring'}
-            </p>
-          </div>
-        )}
-      </div>
-
-      {/* Detection List - always rendered, hidden when not running */}
-      <div style={{
-        ...styles.detectionList,
-        opacity: isRunning ? 1 : 0,
-        pointerEvents: isRunning ? 'auto' : 'none',
-      }}>
-        <h3 style={styles.detectionTitle}>Current Detections:</h3>
-        {detections.length === 0 ? (
-          <p style={styles.noDetections}>No detections</p>
-        ) : (
-          detections.map((det, idx) => (
-            <div
-              key={idx}
-              style={{
-                ...styles.detectionItem,
-                borderLeftColor: isFall(det) ? '#e74c3c' : '#2ecc71'
-              }}
+        <div style={styles.controls}>
+          {!isRunning ? (
+            <button
+              onClick={startDetection}
+              disabled={loading}
+              style={{ ...styles.button, ...styles.startButton, opacity: loading ? 0.5 : 1 }}
             >
-              <div style={styles.detectionLeft}>
-                <span style={styles.detectionClass}>
-                  {isFall(det) ? '⚠️ FALL' : '🧍 Person'}
-                </span>
-                {det.track_id && (
-                  <span style={styles.trackId}>#{det.track_id}</span>
-                )}
-              </div>
-              <span style={styles.detectionConf}>
-                {(det.confidence * 100).toFixed(1)}%
-              </span>
+              {loading ? '⏳ Connecting...' : '▶️ Start Live Detection'}
+            </button>
+          ) : (
+            <button onClick={stopDetection} style={{ ...styles.button, ...styles.stopButton }}>
+              ⏹️ Stop Detection
+            </button>
+          )}
+        </div>
+
+        <div style={{
+          ...styles.statsRow,
+          opacity: isRunning ? 1 : 0,
+          pointerEvents: isRunning ? 'auto' : 'none',
+        }}>
+          <div style={styles.statBox}>
+            <p style={styles.statLabel}>Status</p>
+            <p style={{ ...styles.statValue, color: '#2ecc71' }}>🟢 Live</p>
+          </div>
+          <div style={styles.statBox}>
+            <p style={styles.statLabel}>Falls Detected</p>
+            <p style={{ ...styles.statValue, color: '#e74c3c' }}>{fallCount}</p>
+          </div>
+          <div style={styles.statBox}>
+            <p style={styles.statLabel}>Falls in Frame</p>
+            <p style={styles.statValue}>{detections.length}</p>
+          </div>
+        </div>
+
+        <div style={styles.videoContainer}>
+          {currentFrame && isRunning ? (
+            <img
+              src={`data:image/jpeg;base64,${currentFrame}`}
+              alt="Live feed"
+              style={styles.video}
+            />
+          ) : (
+            <div style={styles.placeholder}>
+              <p style={styles.placeholderText}>
+                {isRunning ? 'Loading video feed...' : 'Click Start to begin monitoring'}
+              </p>
             </div>
-          ))
-        )}
+          )}
+        </div>
+
+        <div style={{
+          ...styles.detectionList,
+          opacity: isRunning ? 1 : 0,
+          pointerEvents: isRunning ? 'auto' : 'none',
+        }}>
+          <h3 style={styles.detectionTitle}>Current Detections:</h3>
+          {detections.length === 0 ? (
+            <p style={styles.noDetections}>No detections</p>
+          ) : (
+            detections.map((det, idx) => (
+              <div key={idx} style={{ ...styles.detectionItem, borderLeftColor: '#e74c3c' }}>
+                <div style={styles.detectionLeft}>
+                  <span style={styles.detectionClass}>⚠️ Fall Detected</span>
+                  {det.track_id && <span style={styles.trackId}>#{det.track_id}</span>}
+                </div>
+                <span style={styles.detectionConf}>{(det.confidence * 100).toFixed(1)}%</span>
+              </div>
+            ))
+          )}
+        </div>
       </div>
-    </div>
+    </>
   );
 }
 
 const styles = {
-  container: {
-    width: '100%',
-  },
-  header: {
-    marginBottom: '30px',
-  },
-  title: {
-    fontSize: '28px',
-    fontWeight: '700',
-    color: '#2c3e50',
-    margin: '0 0 8px 0',
-  },
-  subtitle: {
-    fontSize: '14px',
-    color: '#7f8c8d',
-    margin: 0,
-  },
-  controls: {
-    marginBottom: '30px',
-  },
+  container: { width: '100%' },
+  header: { marginBottom: '30px' },
+  title: { fontSize: '28px', fontWeight: '700', color: '#2c3e50', margin: '0 0 8px 0' },
+  subtitle: { fontSize: '14px', color: '#7f8c8d', margin: 0 },
+  controls: { marginBottom: '30px' },
   button: {
     padding: '16px 32px',
     fontSize: '16px',
@@ -214,14 +280,8 @@ const styles = {
     cursor: 'pointer',
     transition: 'all 0.3s',
   },
-  startButton: {
-    backgroundColor: '#2ecc71',
-    color: '#ffffff',
-  },
-  stopButton: {
-    backgroundColor: '#e74c3c',
-    color: '#ffffff',
-  },
+  startButton: { backgroundColor: '#2ecc71', color: '#ffffff' },
+  stopButton: { backgroundColor: '#e74c3c', color: '#ffffff' },
   statsRow: {
     display: 'grid',
     gridTemplateColumns: 'repeat(3, 1fr)',
@@ -236,17 +296,8 @@ const styles = {
     boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
     textAlign: 'center',
   },
-  statLabel: {
-    fontSize: '12px',
-    color: '#7f8c8d',
-    margin: '0 0 8px 0',
-  },
-  statValue: {
-    fontSize: '28px',
-    fontWeight: '700',
-    color: '#2c3e50',
-    margin: 0,
-  },
+  statLabel: { fontSize: '12px', color: '#7f8c8d', margin: '0 0 8px 0' },
+  statValue: { fontSize: '28px', fontWeight: '700', color: '#2c3e50', margin: 0 },
   videoContainer: {
     backgroundColor: '#000000',
     borderRadius: '12px',
@@ -258,21 +309,9 @@ const styles = {
     justifyContent: 'center',
     position: 'relative',
   },
-  video: {
-    width: '100%',
-    height: '100%',
-    objectFit: 'contain',
-    display: 'block',
-  },
-  placeholder: {
-    textAlign: 'center',
-    padding: '60px 20px',
-  },
-  placeholderText: {
-    color: '#7f8c8d',
-    fontSize: '18px',
-    margin: 0,
-  },
+  video: { width: '100%', height: '100%', objectFit: 'contain', display: 'block' },
+  placeholder: { textAlign: 'center', padding: '60px 20px' },
+  placeholderText: { color: '#7f8c8d', fontSize: '18px', margin: 0 },
   detectionList: {
     backgroundColor: '#ffffff',
     padding: '20px',
@@ -282,20 +321,8 @@ const styles = {
     overflowY: 'auto',
     transition: 'opacity 0.3s',
   },
-  detectionTitle: {
-    fontSize: '18px',
-    fontWeight: '600',
-    color: '#2c3e50',
-    marginTop: 0,
-    marginBottom: '16px',
-  },
-  noDetections: {
-    fontSize: '14px',
-    color: '#7f8c8d',
-    margin: 0,
-    textAlign: 'center',
-    paddingTop: '20px',
-  },
+  detectionTitle: { fontSize: '18px', fontWeight: '600', color: '#2c3e50', marginTop: 0, marginBottom: '16px' },
+  noDetections: { fontSize: '14px', color: '#7f8c8d', margin: 0, textAlign: 'center', paddingTop: '20px' },
   detectionItem: {
     display: 'flex',
     justifyContent: 'space-between',
@@ -306,16 +333,8 @@ const styles = {
     borderLeft: '4px solid',
     marginBottom: '8px',
   },
-  detectionLeft: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '10px',
-  },
-  detectionClass: {
-    fontWeight: '600',
-    fontSize: '14px',
-    color: '#2c3e50',
-  },
+  detectionLeft: { display: 'flex', alignItems: 'center', gap: '10px' },
+  detectionClass: { fontWeight: '600', fontSize: '14px', color: '#2c3e50' },
   trackId: {
     fontSize: '13px',
     fontWeight: '700',
@@ -324,10 +343,7 @@ const styles = {
     padding: '2px 8px',
     borderRadius: '12px',
   },
-  detectionConf: {
-    fontSize: '14px',
-    color: '#7f8c8d',
-  },
+  detectionConf: { fontSize: '14px', color: '#7f8c8d' },
 };
 
 export default LiveDetection;

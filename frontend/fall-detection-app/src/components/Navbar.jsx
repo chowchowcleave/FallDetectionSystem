@@ -1,17 +1,20 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bell, User, LogOut, AlertCircle, Settings, Key, ChevronDown } from 'lucide-react';
+import { Bell, User, LogOut, AlertCircle, Settings, Key, ChevronDown, X } from 'lucide-react';
 import caireLogo from '../assets/caire.png';
 import { api } from '../services/api';
+import { useNotifications } from '../context/NotificationContext';
 
 function Navbar() {
   const navigate = useNavigate();
-  
+  const { notifications, unreadCount, markAllRead, clearAll } = useNotifications();
+
   const user = JSON.parse(localStorage.getItem('user') || '{}');
 
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -30,6 +33,12 @@ function Navbar() {
 
   const handleCancelLogout = () => {
     setShowLogoutModal(false);
+  };
+
+  const handleBellClick = () => {
+    setShowNotifications(!showNotifications);
+    setShowUserDropdown(false);
+    if (!showNotifications) markAllRead();
   };
 
   const handleChangePassword = async () => {
@@ -53,7 +62,6 @@ function Navbar() {
 
     try {
       const response = await api.changePassword(user.username, currentPassword, newPassword);
-      
       if (response.success) {
         setPasswordSuccess('Password changed successfully!');
         setTimeout(() => {
@@ -73,29 +81,82 @@ function Navbar() {
     }
   };
 
+  const formatTime = (date) => {
+    return new Date(date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  };
+
   return (
     <>
       <nav style={styles.navbar}>
         <div style={styles.left}>
-          <img 
-            src={caireLogo} 
-            alt="CAIRE Logo" 
-            style={styles.logo}
-          />
+          <img src={caireLogo} alt="CAIRE Logo" style={styles.logo} />
           <h1 style={styles.title}>CAIRE</h1>
           <span style={styles.subtitle}>Fall Detection System</span>
         </div>
 
         <div style={styles.right}>
-          <button style={styles.iconButton}>
-            <Bell size={20} />
-            <span style={styles.badge}>3</span>
-          </button>
+          {/* Bell Button */}
+          <div style={{ position: 'relative' }}>
+            <button style={styles.iconButton} onClick={handleBellClick}>
+              <Bell size={20} />
+              {unreadCount > 0 && (
+                <span style={styles.badge}>{unreadCount > 99 ? '99+' : unreadCount}</span>
+              )}
+            </button>
 
+            {/* Notification Dropdown */}
+            {showNotifications && (
+              <div style={styles.notifDropdown}>
+                <div style={styles.notifHeader}>
+                  <span style={styles.notifTitle}>Fall Alerts</span>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    {notifications.length > 0 && (
+                      <button style={styles.notifAction} onClick={clearAll}>Clear all</button>
+                    )}
+                  </div>
+                </div>
+
+                <div style={styles.notifList}>
+                  {notifications.length === 0 ? (
+                    <div style={styles.noNotif}>
+                      <Bell size={28} color="#bdc3c7" />
+                      <p style={{ margin: '8px 0 0 0', color: '#bdc3c7', fontSize: '13px' }}>No alerts yet</p>
+                    </div>
+                  ) : (
+                    notifications.map((n) => (
+                      <div
+                        key={n.id}
+                        style={{ ...styles.notifItem, cursor: 'pointer' }}
+                        onClick={() => {
+                          setShowNotifications(false);
+                          navigate('/live');
+                        }}
+                      >
+                        <div style={styles.notifIcon}>⚠️</div>
+                        <div style={styles.notifBody}>
+                          <p style={styles.notifText}>
+                            Fall Detected — Person <strong>#{n.trackId}</strong>
+                          </p>
+                          <p style={styles.notifMeta}>
+                            {(n.confidence * 100).toFixed(1)}% confidence · {formatTime(n.timestamp)}
+                          </p>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* User Menu */}
           <div style={styles.userMenuContainer}>
-            <div 
+            <div
               style={styles.userSection}
-              onClick={() => setShowUserDropdown(!showUserDropdown)}
+              onClick={() => {
+                setShowUserDropdown(!showUserDropdown);
+                setShowNotifications(false);
+              }}
             >
               <div style={styles.avatar}>
                 <User size={18} />
@@ -104,26 +165,23 @@ function Navbar() {
                 <p style={styles.userName}>{user.username || 'Admin User'}</p>
                 <p style={styles.userRole}>{user.role === 'admin' ? 'Administrator' : 'User'}</p>
               </div>
-              <ChevronDown 
-                size={18} 
+              <ChevronDown
+                size={18}
                 style={{
                   ...styles.chevron,
                   transform: showUserDropdown ? 'rotate(180deg)' : 'rotate(0deg)',
-                }} 
+                }}
               />
             </div>
 
             {showUserDropdown && (
               <div style={styles.dropdown}>
-                <button 
-                  style={styles.dropdownItem}
-                  onClick={() => setShowUserDropdown(false)}
-                >
+                <button style={styles.dropdownItem} onClick={() => setShowUserDropdown(false)}>
                   <User size={16} />
                   <span>My Profile</span>
                 </button>
-                
-                <button 
+
+                <button
                   style={styles.dropdownItem}
                   onClick={() => {
                     setShowUserDropdown(false);
@@ -133,8 +191,8 @@ function Navbar() {
                   <Key size={16} />
                   <span>Change Password</span>
                 </button>
-                
-                <button 
+
+                <button
                   style={styles.dropdownItem}
                   onClick={() => {
                     setShowUserDropdown(false);
@@ -144,11 +202,11 @@ function Navbar() {
                   <Settings size={16} />
                   <span>Settings</span>
                 </button>
-                
+
                 <div style={styles.dropdownDivider}></div>
-                
-                <button 
-                  style={{...styles.dropdownItem, ...styles.dropdownItemDanger}}
+
+                <button
+                  style={{ ...styles.dropdownItem, ...styles.dropdownItemDanger }}
                   onClick={handleLogoutClick}
                 >
                   <LogOut size={16} />
@@ -160,7 +218,7 @@ function Navbar() {
         </div>
       </nav>
 
-      {/* Logout Confirmation Modal */}
+      {/* Logout Modal */}
       {showLogoutModal && (
         <div style={styles.modalOverlay} onClick={handleCancelLogout}>
           <div style={styles.modalContent} onClick={(e) => e.stopPropagation()}>
@@ -169,14 +227,9 @@ function Navbar() {
             </div>
             <h2 style={styles.modalTitle}>Confirm Logout</h2>
             <p style={styles.modalMessage}>Are you sure you want to log out?</p>
-            
             <div style={styles.modalButtons}>
-              <button style={styles.cancelButton} onClick={handleCancelLogout}>
-                Cancel
-              </button>
-              <button style={styles.confirmButton} onClick={handleConfirmLogout}>
-                Logout
-              </button>
+              <button style={styles.cancelButton} onClick={handleCancelLogout}>Cancel</button>
+              <button style={styles.confirmButton} onClick={handleConfirmLogout}>Logout</button>
             </div>
           </div>
         </div>
@@ -215,7 +268,6 @@ function Navbar() {
                   style={styles.input}
                 />
               </div>
-
               <div style={styles.formGroup}>
                 <label style={styles.label}>New Password</label>
                 <input
@@ -226,7 +278,6 @@ function Navbar() {
                   style={styles.input}
                 />
               </div>
-
               <div style={styles.formGroup}>
                 <label style={styles.label}>Confirm New Password</label>
                 <input
@@ -240,8 +291,8 @@ function Navbar() {
             </div>
 
             <div style={styles.modalButtons}>
-              <button 
-                style={styles.cancelButton} 
+              <button
+                style={styles.cancelButton}
                 onClick={() => {
                   setShowPasswordModal(false);
                   setPasswordError('');
@@ -258,10 +309,13 @@ function Navbar() {
         </div>
       )}
 
-      {showUserDropdown && (
-        <div 
+      {(showUserDropdown || showNotifications) && (
+        <div
           style={styles.dropdownBackdrop}
-          onClick={() => setShowUserDropdown(false)}
+          onClick={() => {
+            setShowUserDropdown(false);
+            setShowNotifications(false);
+          }}
         />
       )}
     </>
@@ -332,6 +386,72 @@ const styles = {
     borderRadius: '10px',
     minWidth: '16px',
     textAlign: 'center',
+  },
+  notifDropdown: {
+    position: 'absolute',
+    top: '100%',
+    right: 0,
+    marginTop: '8px',
+    backgroundColor: '#ffffff',
+    borderRadius: '12px',
+    boxShadow: '0 4px 24px rgba(0,0,0,0.15)',
+    width: '340px',
+    zIndex: 1000,
+    overflow: 'hidden',
+  },
+  notifHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: '16px 20px',
+    borderBottom: '1px solid #f0f0f0',
+  },
+  notifTitle: {
+    fontSize: '15px',
+    fontWeight: '700',
+    color: '#2c3e50',
+  },
+  notifAction: {
+    background: 'none',
+    border: 'none',
+    fontSize: '12px',
+    color: '#e74c3c',
+    cursor: 'pointer',
+    fontWeight: '600',
+  },
+  notifList: {
+    maxHeight: '320px',
+    overflowY: 'auto',
+  },
+  noNotif: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    padding: '40px 20px',
+  },
+  notifItem: {
+    display: 'flex',
+    gap: '12px',
+    padding: '14px 20px',
+    borderBottom: '1px solid #f8f8f8',
+    alignItems: 'flex-start',
+  },
+  notifIcon: {
+    fontSize: '20px',
+    flexShrink: 0,
+  },
+  notifBody: {
+    flex: 1,
+  },
+  notifText: {
+    margin: '0 0 4px 0',
+    fontSize: '13px',
+    color: '#2c3e50',
+  },
+  notifMeta: {
+    margin: 0,
+    fontSize: '11px',
+    color: '#95a5a6',
   },
   userMenuContainer: {
     position: 'relative',
@@ -470,7 +590,6 @@ const styles = {
     fontSize: '15px',
     fontWeight: '600',
     cursor: 'pointer',
-    transition: 'all 0.3s',
   },
   confirmButton: {
     padding: '12px 24px',
@@ -481,7 +600,6 @@ const styles = {
     fontSize: '15px',
     fontWeight: '600',
     cursor: 'pointer',
-    transition: 'all 0.3s',
   },
   passwordModal: {
     backgroundColor: '#ffffff',
@@ -520,7 +638,6 @@ const styles = {
     border: '2px solid #e0e0e0',
     borderRadius: '8px',
     outline: 'none',
-    transition: 'border-color 0.3s',
   },
   errorMessage: {
     display: 'flex',

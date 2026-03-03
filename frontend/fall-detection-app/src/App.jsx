@@ -7,32 +7,30 @@ import Logs from './pages/Logs';
 import Settings from './pages/Settings';
 import AnimatedLayout from './components/AnimatedLayout';
 import ProtectedRoute from './components/ProtectedRoute';
+import { NotificationProvider } from './context/NotificationContext';
 
 function App() {
   return (
-    <BrowserRouter>
-      <Routes>
-        {/* Redirect root to login */}
-        <Route path="/" element={<Navigate to="/login" replace />} />
-
-        {/* Login Route - No Layout */}
-        <Route path="/login" element={<Login />} />
-
-        {/* Protected Routes - With Animated Layout */}
-        <Route element={
-          <ProtectedRoute>
-            <AnimatedLayout />
-          </ProtectedRoute>
-        }>
-          <Route path="dashboard" element={<Dashboard />} />
-          <Route path="detection" element={<VideoUpload />} />
-          <Route path="live" element={<div />} />
-          <Route path="analytics" element={<ComingSoon page="Analytics" />} />
-          <Route path="logs" element={<Logs />} />
-          <Route path="settings" element={<Settings />} />
-        </Route>
-      </Routes>
-    </BrowserRouter>
+    <NotificationProvider>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/" element={<Navigate to="/login" replace />} />
+          <Route path="/login" element={<Login />} />
+          <Route element={
+            <ProtectedRoute>
+              <AnimatedLayout />
+            </ProtectedRoute>
+          }>
+            <Route path="dashboard" element={<Dashboard />} />
+            <Route path="detection" element={<VideoUpload />} />
+            <Route path="live" element={<div />} />
+            <Route path="analytics" element={<ComingSoon page="Analytics" />} />
+            <Route path="logs" element={<Logs />} />
+            <Route path="settings" element={<Settings />} />
+          </Route>
+        </Routes>
+      </BrowserRouter>
+    </NotificationProvider>
   );
 }
 
