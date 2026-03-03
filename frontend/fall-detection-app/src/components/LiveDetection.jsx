@@ -1,26 +1,22 @@
 import React, { useState, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
+import { useNavigate } from 'react-router-dom';
 import { api } from '../services/api';
 import { useNotifications } from '../context/NotificationContext';
 
-// Play a beep sound using Web Audio API
 function playAlertSound() {
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
     const oscillator = ctx.createOscillator();
     const gainNode = ctx.createGain();
-
     oscillator.connect(gainNode);
     gainNode.connect(ctx.destination);
-
     oscillator.type = 'square';
     oscillator.frequency.setValueAtTime(880, ctx.currentTime);
     oscillator.frequency.setValueAtTime(660, ctx.currentTime + 0.1);
     oscillator.frequency.setValueAtTime(880, ctx.currentTime + 0.2);
-
     gainNode.gain.setValueAtTime(0.3, ctx.currentTime);
     gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
-
     oscillator.start(ctx.currentTime);
     oscillator.stop(ctx.currentTime + 0.4);
   } catch (e) {
@@ -28,15 +24,14 @@ function playAlertSound() {
   }
 }
 
-// Toast component
-function FallToast({ trackId, confidence, onClose }) {
+function FallToast({ trackId, confidence, onClose, onClick }) {
   useEffect(() => {
     const timer = setTimeout(onClose, 5000);
     return () => clearTimeout(timer);
   }, [onClose]);
 
   return ReactDOM.createPortal(
-    <div style={toastStyles.toast}>
+    <div style={{ ...toastStyles.toast, cursor: 'pointer' }} onClick={onClick}>
       <div style={toastStyles.icon}>⚠️</div>
       <div style={toastStyles.body}>
         <p style={toastStyles.title}>Fall Detected!</p>
@@ -44,7 +39,7 @@ function FallToast({ trackId, confidence, onClose }) {
           Person #{trackId} · {(confidence * 100).toFixed(1)}% confidence
         </p>
       </div>
-      <button style={toastStyles.close} onClick={onClose}>✕</button>
+      <button style={toastStyles.close} onClick={(e) => { e.stopPropagation(); onClose(); }}>✕</button>
     </div>,
     document.body
   );
@@ -89,10 +84,10 @@ function LiveDetection() {
   const [detections, setDetections] = useState([]);
   const [fallCount, setFallCount] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [toast, setToast] = useState(null);
   const intervalRef = useRef(null);
   const activeFallIds = useRef(new Set());
-  const { addNotification } = useNotifications();
+  const navigate = useNavigate();
+  const { addNotification, activeToast, dismissToast } = useNotifications();
 
   const startDetection = async () => {
     setLoading(true);
@@ -134,7 +129,6 @@ function LiveDetection() {
             activeFallIds.current.add(id);
             setFallCount(prev => prev + 1);
             addNotification(id, fall.confidence);
-            setToast({ trackId: id, confidence: fall.confidence });
             playAlertSound();
           }
         });
@@ -152,7 +146,6 @@ function LiveDetection() {
     setDetections([]);
     setCurrentFrame(null);
     setFallCount(0);
-    setToast(null);
     activeFallIds.current = new Set();
   };
 
@@ -175,11 +168,12 @@ function LiveDetection() {
         }
       `}</style>
 
-      {toast && (
+      {activeToast && (
         <FallToast
-          trackId={toast.trackId}
-          confidence={toast.confidence}
-          onClose={() => setToast(null)}
+          trackId={activeToast.trackId}
+          confidence={activeToast.confidence}
+          onClose={dismissToast}
+          onClick={() => { dismissToast(); navigate('/live'); }}
         />
       )}
 

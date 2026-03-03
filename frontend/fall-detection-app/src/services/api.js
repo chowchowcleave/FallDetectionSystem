@@ -6,11 +6,9 @@ export const api = {
   detectVideo: async (videoFile) => {
     const formData = new FormData();
     formData.append('file', videoFile);
-
     const response = await axios.post(`${API_BASE_URL}/detect/video`, formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
     });
-
     return response.data;
   },
 
@@ -46,11 +44,10 @@ export const api = {
     return response.data;
   },
 
-  // Change Password
   changePassword: async (username, currentPassword, newPassword) => {
     const response = await axios.post(`${API_BASE_URL}/auth/change-password`, null, {
-      params: { 
-        username, 
+      params: {
+        username,
         current_password: currentPassword,
         new_password: newPassword
       }
@@ -59,21 +56,23 @@ export const api = {
   },
 
   // Settings
-getSettings: async () => {
-  const response = await axios.get(`${API_BASE_URL}/settings`);
-  return response.data;
-},
+  getSettings: async () => {
+    const response = await axios.get(`${API_BASE_URL}/settings`);
+    return response.data;
+  },
 
-updateSettings: async (settings) => {
-  const response = await axios.post(`${API_BASE_URL}/settings/update`, settings);
-  return response.data;
-},
+  updateSettings: async (settings) => {
+    const response = await axios.post(`${API_BASE_URL}/settings/update`, settings);
+    return response.data;
+  },
 
   // Logs
-  getLogs: async (limit = 100) => {
-    const response = await axios.get(`${API_BASE_URL}/logs/list`, {
-      params: { limit }
-    });
+  getLogs: async (limit = 100, dateFrom = null, dateTo = null, minConfidence = null) => {
+    const params = { limit };
+    if (dateFrom) params.date_from = dateFrom;
+    if (dateTo) params.date_to = dateTo;
+    if (minConfidence !== null) params.min_confidence = minConfidence;
+    const response = await axios.get(`${API_BASE_URL}/logs/list`, { params });
     return response.data;
   },
 
@@ -82,7 +81,52 @@ updateSettings: async (settings) => {
     return response.data;
   },
 
+  deleteLog: async (id) => {
+    const response = await axios.delete(`${API_BASE_URL}/logs/delete/${id}`);
+    return response.data;
+  },
+
   getImageUrl: (filename) => {
     return `${API_BASE_URL}/images/${filename}`;
   },
+
+  // Analytics
+  getAnalyticsSummary: async () => {
+    const response = await axios.get(`${API_BASE_URL}/analytics/summary`);
+    return response.data;
+  },
+
+  getFallsPerDay: async (days = 7) => {
+    const response = await axios.get(`${API_BASE_URL}/analytics/falls-per-day`, {
+      params: { days }
+    });
+    return response.data;
+  },
+
+  getFallsByHour: async () => {
+    const response = await axios.get(`${API_BASE_URL}/analytics/falls-by-hour`);
+    return response.data;
+  },
+
+  getConfidenceDistribution: async () => {
+    const response = await axios.get(`${API_BASE_URL}/analytics/confidence-distribution`);
+    return response.data;
+  },
+
+  getRecentDetections: async (limit = 5) => {
+    const response = await axios.get(`${API_BASE_URL}/analytics/recent`, {
+      params: { limit }
+    });
+    return response.data;
+  },
+
+  getFallsInRange: async (dateFrom, dateTo) => {
+    const response = await axios.get(`${API_BASE_URL}/analytics/range`, {
+      params: { date_from: dateFrom, date_to: dateTo }
+    });
+    return response.data;
+  },
+  getReport: (dateFrom, dateTo) => {
+  return `${API_BASE_URL}/analytics/report?date_from=${dateFrom}&date_to=${dateTo}`;
+},
 };

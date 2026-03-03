@@ -143,6 +143,28 @@ def get_detection_stats():
         'recent_24h': recent_24h
     }
 
+def delete_detection(detection_id):
+    """Delete a single detection by ID and its image file"""
+    import os
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+
+    cursor.execute('SELECT image_data FROM detections WHERE id = ?', (detection_id,))
+    row = cursor.fetchone()
+
+    if row and row['image_data']:
+        image_path = DB_PATH.parent / "images" / row['image_data']
+        if image_path.exists():
+            try:
+                os.remove(image_path)
+            except Exception as e:
+                print(f"Failed to delete image: {e}")
+
+    cursor.execute('DELETE FROM detections WHERE id = ?', (detection_id,))
+    conn.commit()
+    conn.close()
+
 def delete_all_detections():
     """Delete all detections and their associated images"""
     import os
@@ -444,6 +466,153 @@ def get_settings_by_category():
         }
     }
 
+def get_falls_per_day(days=7):
+    """Get fall counts grouped by day for the last N days"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+
+    cursor.execute('''
+        SELECT DATE(timestamp) as day, COUNT(*) as count
+        FROM detections
+        WHERE detection_type = 'fall'
+        AND datetime(timestamp) > datetime('now', ?)
+        GROUP BY DATE(timestamp)
+        ORDER BY day ASC
+    ''', (f'-{days} days',))
+
+    rows = cursor.fetchall()
+    conn.close()
+
+    return [{'day': row[0], 'count': row[1]} for row in rows]
+
+def get_falls_by_hour():
+    """Get fall counts grouped by hour of day"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+
+    cursor.execute('''
+        SELECT CAST(strftime('%H', timestamp) AS INTEGER) as hour, COUNT(*) as count
+        FROM detections
+        WHERE detection_type = 'fall'
+        GROUP BY hour
+        ORDER BY hour ASC
+    ''')
+
+    rows = cursor.fetchall()
+    conn.close()
+
+    hour_map = {row[0]: row[1] for row in rows}
+    return [{'hour': h, 'count': hour_map.get(h, 0)} for h in range(24)]
+
+def get_falls_in_range(date_from, date_to):
+    """Get falls between two dates"""
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+
+    cursor.execute('''
+        SELECT id, timestamp, detection_type, confidence, camera_source, image_data, notes
+        FROM detections
+        WHERE detection_type = 'fall'
+        AND DATE(timestamp) BETWEEN ? AND ?
+        ORDER BY timestamp DESC
+    ''', (date_from, date_to))
+
+    rows = cursor.fetchall()
+    conn.close()
+
+    return [dict(row) for row in rows]
+
+def get_today_falls():
+    """Get count of falls today"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+
+    cursor.execute('''
+        SELECT COUNT(*) FROM detections
+        WHERE detection_type = 'fall'
+        AND DATE(timestamp) = DATE('now')
+    ''')
+
+    count = cursor.fetchone()[0]
+    conn.close()
+    return count
+
+def get_week_falls():
+    """Get count of falls this week"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+
+    cursor.execute('''
+        SELECT COUNT(*) FROM detections
+        WHERE detection_type = 'fall'
+        AND datetime(timestamp) > datetime('now', '-7 days')
+    ''')
+
+    count = cursor.fetchone()[0]
+    conn.close()
+    return count
+
+def get_last_fall():
+    """Get the most recent fall timestamp"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+
+    cursor.execute('''
+        SELECT timestamp FROM detections
+        WHERE detection_type = 'fall'
+        ORDER BY timestamp DESC
+        LIMIT 1
+    ''')
+
+    row = cursor.fetchone()
+    conn.close()
+    return row[0] if row else None
+
+def get_confidence_distribution():
+    """Get falls grouped by confidence range"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+
+    cursor.execute('''
+        SELECT
+            CASE
+                WHEN confidence < 0.6 THEN '50-60%'
+                WHEN confidence < 0.7 THEN '60-70%'
+                WHEN confidence < 0.8 THEN '70-80%'
+                WHEN confidence < 0.9 THEN '80-90%'
+                ELSE '90-100%'
+            END as range,
+            COUNT(*) as count
+        FROM detections
+        WHERE detection_type = 'fall'
+        GROUP BY range
+        ORDER BY range ASC
+    ''')
+
+    rows = cursor.fetchall()
+    conn.close()
+
+    return [{'range': row[0], 'count': row[1]} for row in rows]
+
+def get_recent_detections(limit=5):
+    """Get most recent fall detections for dashboard"""
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+
+    cursor.execute('''
+        SELECT id, timestamp, detection_type, confidence, camera_source, image_data
+        FROM detections
+        WHERE detection_type = 'fall'
+        ORDER BY timestamp DESC
+        LIMIT ?
+    ''', (limit,))
+
+    rows = cursor.fetchall()
+    conn.close()
+
+    return [dict(row) for row in rows]
 # Initialize database when module is imported
 init_database()
 init_users_table()

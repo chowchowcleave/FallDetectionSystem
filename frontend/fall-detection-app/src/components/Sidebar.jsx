@@ -1,12 +1,11 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Video, BarChart3, FileText, Settings, Radio } from 'lucide-react';
+import { LayoutDashboard, BarChart3, FileText, Settings, Radio } from 'lucide-react';
 import caireLogo from '../assets/caire.png';
 
 function Sidebar() {
   const menuItems = [
     { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard' },
-    { icon: Video, label: 'Detection', path: '/detection' },
     { icon: Radio, label: 'Live Detection', path: '/live' },
     { icon: BarChart3, label: 'Analytics', path: '/analytics' },
     { icon: FileText, label: 'Logs', path: '/logs' },
@@ -15,17 +14,11 @@ function Sidebar() {
 
   return (
     <div style={styles.sidebar}>
-      {/* Logo */}
       <div style={styles.logo}>
-        <img 
-          src={caireLogo} 
-          alt="CAIRE Logo" 
-          style={styles.logoIcon}
-        />
+        <img src={caireLogo} alt="CAIRE Logo" style={styles.logoIcon} />
         <h2 style={styles.logoText}>CAIRE</h2>
       </div>
 
-      {/* Menu Items */}
       <nav style={styles.nav}>
         {menuItems.map((item) => (
           <NavLink
@@ -42,7 +35,6 @@ function Sidebar() {
         ))}
       </nav>
 
-      {/* Footer */}
       <div style={styles.footer}>
         <p style={styles.footerText}>CAIRE v1.0.0</p>
         <p style={styles.footerSubtext}>Fall Detection System</p>
@@ -67,14 +59,14 @@ const styles = {
     borderBottom: '1px solid rgba(255,255,255,0.1)',
   },
   logoIcon: {
-    height: '48px',        
-    width: '48px',        
+    height: '48px',
+    width: '48px',
     objectFit: 'contain',
   },
   logoText: {
     color: '#ffffff',
     margin: 0,
-    fontSize: '28px',     
+    fontSize: '28px',
     fontWeight: '700',
     letterSpacing: '0.5px',
   },
