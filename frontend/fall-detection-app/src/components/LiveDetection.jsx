@@ -180,7 +180,7 @@ function LiveDetection() {
       <div style={styles.container}>
         <div style={styles.header}>
           <h1 style={styles.title}>Live Fall Detection</h1>
-          <p style={styles.subtitle}>Real-time monitoring with Tapo C210</p>
+          <p style={styles.subtitle}>Real-time Monitoring</p>
         </div>
 
         <div style={styles.controls}>

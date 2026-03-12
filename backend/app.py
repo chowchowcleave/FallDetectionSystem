@@ -48,8 +48,12 @@ OUTPUT_DIR.mkdir(exist_ok=True)
 # Live detection setup
 from database import get_setting
 
-def get_camera_url():
-    """Get camera URL from settings, fallback to .env"""
+def get_camera_source():
+    """Get camera source — returns int (webcam index) or str (RTSP URL)"""
+    camera_source = get_setting('camera_source', os.getenv('CAMERA_SOURCE', 'rtsp'))
+    if camera_source == 'webcam':
+        camera_index = int(get_setting('camera_index', os.getenv('CAMERA_INDEX', '0')))
+        return camera_index
     return get_setting('camera_url', os.getenv('CAMERA_URL', ''))
 
 def get_confidence():
@@ -214,13 +218,16 @@ def start_live_detection():
     if live_detector and live_detector.is_running:
         return {"status": "already_running"}
     
-    camera_url = get_camera_url()
-    live_detector = LiveDetector(MODEL_PATH, camera_url, pose_model)
+    camera_source = get_camera_source()
+    print(f"DEBUG - camera_source value: {camera_source}")
+    print(f"DEBUG - type: {type(camera_source)}")
+    live_detector = LiveDetector(MODEL_PATH, camera_source, pose_model)
     
     if live_detector.connect_camera():
+        source_label = f"Webcam (index {camera_source})" if isinstance(camera_source, int) else "RTSP stream"
         return {
             "status": "success",
-            "message": "Live detection started"
+            "message": f"Live detection started — {source_label}"
         }
     else:
         return {
@@ -273,9 +280,11 @@ def get_live_frame():
     
 @app.get("/live/stream-url")
 def get_stream_url():
-    camera_url = get_camera_url()
+    camera_source = get_camera_source()
     return {
-        "rtsp_url": camera_url,
+        "rtsp_url": camera_source if isinstance(camera_source, str) else None,
+        "camera_source": "webcam" if isinstance(camera_source, int) else "rtsp",
+        "camera_index": camera_source if isinstance(camera_source, int) else None,
         "status": "success"
     }
 

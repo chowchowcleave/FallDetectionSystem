@@ -52,12 +52,10 @@ def create_default_admin():
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     
-    # Check if any users exist
     cursor.execute('SELECT COUNT(*) FROM users')
     count = cursor.fetchone()[0]
     
     if count == 0:
-        # Create default admin
         password_hash = hashlib.sha256("admin123".encode()).hexdigest()
         cursor.execute('''
             INSERT INTO users (username, password_hash, role, created_at)
@@ -110,15 +108,12 @@ def get_detection_stats():
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     
-    # Total detections
     cursor.execute('SELECT COUNT(*) as total FROM detections')
     total = cursor.fetchone()[0]
     
-    # Falls only
     cursor.execute('SELECT COUNT(*) as falls FROM detections WHERE detection_type = "fall"')
     falls = cursor.fetchone()[0]
     
-    # Detections by type
     cursor.execute('''
         SELECT detection_type, COUNT(*) as count
         FROM detections
@@ -126,7 +121,6 @@ def get_detection_stats():
     ''')
     by_type = dict(cursor.fetchall())
     
-    # Recent detections (last 24 hours)
     cursor.execute('''
         SELECT COUNT(*) as recent
         FROM detections
@@ -173,16 +167,13 @@ def delete_all_detections():
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     
-    # Get all image filenames before deleting
     cursor.execute('SELECT image_data FROM detections WHERE image_data IS NOT NULL')
     images = cursor.fetchall()
     
-    # Delete from database
     cursor.execute('DELETE FROM detections')
     conn.commit()
     conn.close()
     
-    # Delete image files
     images_dir = DB_PATH.parent / "images"
     deleted_count = 0
     
@@ -355,13 +346,15 @@ def create_default_settings():
             ('camera_username', 'chamsroom'),
             ('camera_password', 'admin123'),
             ('camera_location', 'Main Camera'),
+            ('camera_source', 'rtsp'),   # 'rtsp' or 'webcam'
+            ('camera_index', '0'),        # webcam index (used when camera_source = 'webcam')
             
             # Detection Settings
             ('confidence_threshold', '0.75'),
             ('cooldown_seconds', '30'),
             ('enable_fall_detection', 'true'),
             ('enable_fighting_detection', 'false'),
-            ('person_tracking_confidence', '0.45'),  # NEW
+            ('person_tracking_confidence', '0.45'),
             
             # Alert Settings
             ('alert_email_enabled', 'false'),
@@ -385,6 +378,18 @@ def create_default_settings():
         
         conn.commit()
         print(f"✅ Default settings created")
+    else:
+        # Ensure camera_source and camera_index exist even in older databases
+        now = datetime.now().isoformat()
+        for key, value in [('camera_source', 'rtsp'), ('camera_index', '0')]:
+            cursor.execute('SELECT COUNT(*) FROM settings WHERE setting_key = ?', (key,))
+            if cursor.fetchone()[0] == 0:
+                cursor.execute('''
+                    INSERT INTO settings (setting_key, setting_value, updated_at)
+                    VALUES (?, ?, ?)
+                ''', (key, value, now))
+        conn.commit()
+        print(f"✅ Camera source settings verified")
     
     conn.close()
 
@@ -443,13 +448,15 @@ def get_settings_by_category():
             'username': all_settings.get('camera_username', ''),
             'password': all_settings.get('camera_password', ''),
             'location': all_settings.get('camera_location', ''),
+            'source': all_settings.get('camera_source', 'rtsp'),
+            'camera_index': int(all_settings.get('camera_index', '0')),
         },
         'detection': {
             'confidence_threshold': float(all_settings.get('confidence_threshold', 0.75)),
             'cooldown_seconds': int(all_settings.get('cooldown_seconds', 30)),
             'enable_fall_detection': all_settings.get('enable_fall_detection', 'true') == 'true',
             'enable_fighting_detection': all_settings.get('enable_fighting_detection', 'false') == 'true',
-            'person_tracking_confidence': float(all_settings.get('person_tracking_confidence', 0.45)),  # NEW
+            'person_tracking_confidence': float(all_settings.get('person_tracking_confidence', 0.45)),
         },
         'alerts': {
             'email_enabled': all_settings.get('alert_email_enabled', 'false') == 'true',
@@ -613,6 +620,7 @@ def get_recent_detections(limit=5):
     conn.close()
 
     return [dict(row) for row in rows]
+
 # Initialize database when module is imported
 init_database()
 init_users_table()

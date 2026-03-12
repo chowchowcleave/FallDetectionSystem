@@ -57,10 +57,10 @@ def is_skeleton_inside_bbox(kp_array, bbox, threshold=0.5):
     return (inside / total) >= threshold
 
 class LiveDetector:
-    def __init__(self, model_path, rtsp_url, pose_model=None):
+    def __init__(self, model_path, camera_source, pose_model=None):
         self.model = YOLO(model_path)
         self.pose_model = pose_model
-        self.rtsp_url = rtsp_url
+        self.camera_source = camera_source  # int (webcam index) or str (RTSP URL)
         self.cap = None
         self.is_running = False
         self.last_detection_time = None
@@ -69,13 +69,20 @@ class LiveDetector:
         self.images_dir.mkdir(exist_ok=True)
 
     def connect_camera(self):
-        self.cap = cv2.VideoCapture(self.rtsp_url)
+        # cv2.VideoCapture accepts both int (webcam) and str (RTSP URL)
+        self.cap = cv2.VideoCapture(self.camera_source)
         if self.cap.isOpened():
             self.is_running = True
-            print("Camera connected!")
+            if isinstance(self.camera_source, int):
+                print(f"Webcam connected! Index: {self.camera_source}")
+            else:
+                print(f"RTSP camera connected!")
             return True
         else:
-            print("Failed to connect to camera")
+            if isinstance(self.camera_source, int):
+                print(f"Failed to connect to webcam at index {self.camera_source}")
+            else:
+                print(f"Failed to connect to RTSP stream")
             return False
 
     def is_cooldown_active(self):

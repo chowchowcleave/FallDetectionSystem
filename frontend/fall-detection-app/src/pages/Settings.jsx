@@ -53,13 +53,15 @@ function Settings() {
         camera_username: settings.camera.username,
         camera_password: settings.camera.password,
         camera_location: settings.camera.location,
+        camera_source: settings.camera.source,
+        camera_index: settings.camera.camera_index,
 
         // Detection
         confidence_threshold: settings.detection.confidence_threshold,
         cooldown_seconds: settings.detection.cooldown_seconds,
         enable_fall_detection: settings.detection.enable_fall_detection,
         enable_fighting_detection: settings.detection.enable_fighting_detection,
-        person_tracking_confidence: settings.detection.person_tracking_confidence, // NEW
+        person_tracking_confidence: settings.detection.person_tracking_confidence,
 
         // Alerts
         alert_email_enabled: settings.alerts.email_enabled,
@@ -105,6 +107,8 @@ function Settings() {
     { id: 'system', label: 'System', icon: Info },
   ];
 
+  const isWebcam = settings.camera.source === 'webcam';
+
   return (
     <div style={styles.container}>
       <div style={styles.header}>
@@ -147,41 +151,92 @@ function Settings() {
           <div style={styles.section}>
             <h2 style={styles.sectionTitle}>Camera Configuration</h2>
 
+            {/* Camera Source Toggle */}
             <div style={styles.field}>
-              <label style={styles.label}>RTSP URL</label>
-              <input
-                type="text"
-                value={settings.camera.url || ''}
-                onChange={(e) => handleInputChange('camera', 'url', e.target.value)}
-                placeholder="rtsp://username:password@192.168.1.100:554/stream1"
-                style={styles.input}
-              />
-              <p style={styles.hint}>Full RTSP stream URL including credentials</p>
+              <label style={styles.label}>Camera Source</label>
+              <div style={{ display: 'flex', gap: '12px' }}>
+                <button
+                  onClick={() => handleInputChange('camera', 'source', 'rtsp')}
+                  style={{
+                    ...styles.toggleBtn,
+                    ...(!isWebcam ? styles.toggleBtnActive : {})
+                  }}
+                >
+                  RTSP Camera
+                </button>
+                <button
+                  onClick={() => handleInputChange('camera', 'source', 'webcam')}
+                  style={{
+                    ...styles.toggleBtn,
+                    ...(isWebcam ? styles.toggleBtnActive : {})
+                  }}
+                >
+                  Webcam
+                </button>
+              </div>
+              <p style={styles.hint}>
+                {isWebcam
+                  ? 'Using a locally connected USB or built-in webcam'
+                  : 'Using an IP camera via RTSP stream'}
+              </p>
             </div>
 
-            <div style={styles.fieldRow}>
+            {/* Webcam Index — only shown when Webcam is selected */}
+            {isWebcam && (
               <div style={styles.field}>
-                <label style={styles.label}>Username</label>
+                <label style={styles.label}>Camera Index</label>
                 <input
-                  type="text"
-                  value={settings.camera.username || ''}
-                  onChange={(e) => handleInputChange('camera', 'username', e.target.value)}
-                  placeholder="Camera username"
-                  style={styles.input}
+                  type="number"
+                  min="0"
+                  max="10"
+                  value={settings.camera.camera_index ?? 0}
+                  onChange={(e) => handleInputChange('camera', 'camera_index', parseInt(e.target.value))}
+                  style={{ ...styles.input, width: '100px' }}
                 />
+                <p style={styles.hint}>0 = default webcam, 1 = second webcam, and so on</p>
               </div>
+            )}
 
-              <div style={styles.field}>
-                <label style={styles.label}>Password</label>
-                <input
-                  type="password"
-                  value={settings.camera.password || ''}
-                  onChange={(e) => handleInputChange('camera', 'password', e.target.value)}
-                  placeholder="Camera password"
-                  style={styles.input}
-                />
-              </div>
-            </div>
+            {/* RTSP fields — only shown when RTSP is selected */}
+            {!isWebcam && (
+              <>
+                <div style={styles.field}>
+                  <label style={styles.label}>RTSP URL</label>
+                  <input
+                    type="text"
+                    value={settings.camera.url || ''}
+                    onChange={(e) => handleInputChange('camera', 'url', e.target.value)}
+                    placeholder="rtsp://username:password@192.168.1.100:554/stream1"
+                    style={styles.input}
+                  />
+                  <p style={styles.hint}>Full RTSP stream URL including credentials</p>
+                </div>
+
+                <div style={styles.fieldRow}>
+                  <div style={styles.field}>
+                    <label style={styles.label}>Username</label>
+                    <input
+                      type="text"
+                      value={settings.camera.username || ''}
+                      onChange={(e) => handleInputChange('camera', 'username', e.target.value)}
+                      placeholder="Camera username"
+                      style={styles.input}
+                    />
+                  </div>
+
+                  <div style={styles.field}>
+                    <label style={styles.label}>Password</label>
+                    <input
+                      type="password"
+                      value={settings.camera.password || ''}
+                      onChange={(e) => handleInputChange('camera', 'password', e.target.value)}
+                      placeholder="Camera password"
+                      style={styles.input}
+                    />
+                  </div>
+                </div>
+              </>
+            )}
 
             <div style={styles.field}>
               <label style={styles.label}>Camera Location</label>
@@ -217,7 +272,6 @@ function Settings() {
               <p style={styles.hint}>Higher values = fewer false alarms, but might miss some falls</p>
             </div>
 
-            {/* NEW - Person Tracking Confidence Slider */}
             <div style={styles.field}>
               <label style={styles.label}>
                 Person Tracking Confidence: {(settings.detection.person_tracking_confidence * 100).toFixed(0)}%
@@ -531,6 +585,7 @@ const styles = {
     outline: 'none',
     transition: 'border-color 0.3s',
     fontFamily: 'inherit',
+    boxSizing: 'border-box',
   },
   slider: {
     width: '100%',
@@ -556,6 +611,22 @@ const styles = {
     width: '18px',
     height: '18px',
     cursor: 'pointer',
+  },
+  toggleBtn: {
+    padding: '10px 24px',
+    border: '2px solid #e0e0e0',
+    borderRadius: '8px',
+    backgroundColor: '#f5f5f5',
+    color: '#7f8c8d',
+    fontSize: '14px',
+    fontWeight: '600',
+    cursor: 'pointer',
+    transition: 'all 0.2s',
+  },
+  toggleBtnActive: {
+    backgroundColor: '#3498db',
+    borderColor: '#3498db',
+    color: '#ffffff',
   },
   footer: {
     display: 'flex',
