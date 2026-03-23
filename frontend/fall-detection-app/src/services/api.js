@@ -44,6 +44,23 @@ export const api = {
     return response.data;
   },
 
+  register: async (username, password, role = 'caregiver') => {
+    const response = await axios.post(`${API_BASE_URL}/auth/register`, null, {
+      params: { username, password, role }
+    });
+    return response.data;
+  },
+
+  getUsers: async () => {
+    const response = await axios.get(`${API_BASE_URL}/auth/users`);
+    return response.data;
+  },
+
+  deleteUser: async (userId) => {
+    const response = await axios.delete(`${API_BASE_URL}/auth/users/${userId}`);
+    return response.data;
+  },
+
   changePassword: async (username, currentPassword, newPassword) => {
     const response = await axios.post(`${API_BASE_URL}/auth/change-password`, null, {
       params: {
@@ -126,7 +143,8 @@ export const api = {
     });
     return response.data;
   },
+
   getReport: (dateFrom, dateTo) => {
-  return `${API_BASE_URL}/analytics/report?date_from=${dateFrom}&date_to=${dateTo}`;
-},
+    return `${API_BASE_URL}/analytics/report?date_from=${dateFrom}&date_to=${dateTo}`;
+  },
 };

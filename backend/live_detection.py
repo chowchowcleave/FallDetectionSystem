@@ -67,12 +67,14 @@ class LiveDetector:
 
         self.images_dir = Path(__file__).parent / "images"
         self.images_dir.mkdir(exist_ok=True)
+        self.startup_time = None
+        self.startup_cooldown = 7  # seconds
 
     def connect_camera(self):
-        # cv2.VideoCapture accepts both int (webcam) and str (RTSP URL)
         self.cap = cv2.VideoCapture(self.camera_source)
         if self.cap.isOpened():
             self.is_running = True
+            self.startup_time = datetime.now()
             if isinstance(self.camera_source, int):
                 print(f"Webcam connected! Index: {self.camera_source}")
             else:
@@ -242,7 +244,10 @@ class LiveDetector:
                           0.5, (0, 0, 255), 2)
 
         if fall_detected_this_frame:
-            if not self.is_cooldown_active():
+            startup_elapsed = (datetime.now() - self.startup_time).total_seconds() if self.startup_time else 999
+            if startup_elapsed < self.startup_cooldown:
+                print(f"Startup cooldown: {self.startup_cooldown - startup_elapsed:.0f}s remaining")
+            elif not self.is_cooldown_active():
                 self.last_detection_time = datetime.now()
                 saved_image_filename = self.save_detection_image(frame_resized)
                 print(f"New fall detected! Image saved: {saved_image_filename}")

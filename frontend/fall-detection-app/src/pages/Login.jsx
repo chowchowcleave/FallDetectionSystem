@@ -33,9 +33,10 @@ function Login() {
         setIsVisible(false);
         
         // Wait for fade animation to complete, then navigate
-        setTimeout(() => {
-          navigate('/dashboard');
-        }, 500); // 500ms matches the transition time
+setTimeout(() => {
+  const role = response.user.role;
+  navigate(role === 'admin' ? '/dashboard' : '/live');
+}, 500);
       }
     } catch (err) {
       setError('Invalid username or password');
