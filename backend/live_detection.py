@@ -54,26 +54,34 @@ def is_skeleton_inside_bbox(kp_array, bbox, threshold=0.5):
     return (inside / total) >= threshold
 
 def send_sms_alert(phone_number):
-    """Send SMS alert via Twilio when a fall is detected"""
+    """Send SMS alert via Semaphore when a fall is detected"""
     try:
-        from twilio.rest import Client
-        account_sid = os.getenv('TWILIO_ACCOUNT_SID')
-        auth_token = os.getenv('TWILIO_AUTH_TOKEN')
-        twilio_number = os.getenv('TWILIO_PHONE_NUMBER')
-        if not account_sid or not auth_token or not twilio_number:
-            print("Twilio credentials not configured in .env")
+        import requests
+
+        api_key = os.getenv('SEMAPHORE_API_KEY')
+
+        if not api_key:
+            print("Semaphore API key not configured in .env")
             return False
+
         if not phone_number:
             print("No recipient phone number configured in settings")
             return False
-        client = Client(account_sid, auth_token)
-        message = client.messages.create(
-            body="A fall has been detected, please respond immediately.",
-            from_=twilio_number,
-            to=phone_number
-        )
-        print(f"SMS sent successfully! SID: {message.sid}")
+
+        url = "https://api.semaphore.co/api/v4/messages"
+        payload = {
+            "apikey": api_key,
+            "number": phone_number,
+            "message": "A fall has been detected, please respond immediately.",
+            "sendername": "CAIRE"
+        }
+
+        response = requests.post(url, data=payload)
+        result = response.json()
+
+        print(f"SMS sent! Response: {result}")
         return True
+
     except Exception as e:
         print(f"Failed to send SMS: {e}")
         return False
